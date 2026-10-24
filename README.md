@@ -58,6 +58,19 @@ Lines have priorities so the coach doesn't talk over itself: the countdown and r
 * **Mask** toggle (Setup and Train): paints every pixel that matches the ball color pink and shows fps, pose latency, ball radius, blob area and the current color. If the ring jumps to a sock, turn this on and you'll see why. Screenshot it when reporting a tracking problem.
 * **Color adaptation**: once locked, the target color drifts slowly toward what the ball actually looks like, so moving into shade doesn't drop the lock. Hue can't drift more than 25° and saturation can't fall below 70% of the tapped color, so it won't creep onto skin or floor.
 
+## Guided workouts
+
+Pick one from the **Guided workout** dropdown on the Train screen and press Start Workout. The coach introduces it, counts you into each block, calls time, runs the rest periods (with the next move animated on screen and a Skip button), and finishes with a spoken summary. Each block has a rep goal. The Vault shows the last workout block by block, and the history logs the workout as one row.
+
+| Workout | Length | Blocks |
+| :--- | :--- | :--- |
+| **Quick Touch** | 5 min | Foundations, Toe Taps, L-Drags, Foundations, Toe Taps (40–45 s each, 15 s rests) |
+| **Footwork Builder** | 9 min | Seven 60 s blocks cycling the three ground moves, 20 s rests |
+| **First Touch** | 7 min | Wall-pass blocks with footwork between. Needs a wall. |
+| **Striker** | 6 min | Footwork warm-up, two 90 s scored strike blocks, toe taps to finish |
+
+Pause works during blocks and rests. End & Save mid-workout saves what was completed as a partial. Workouts are defined in `WORKOUTS` in `index.html`; adding one is a few lines.
+
 ## Challenges
 
 * **Free Play** — open-ended, timer counts up.
@@ -87,7 +100,8 @@ Testing without a camera: `?demo=1` swaps in a synthetic feed with a rolling ora
 | Issue | Fix |
 | :--- | :--- |
 | "Camera permission denied" | Serve over https or localhost; allow camera for the site in browser settings and tap Retry. |
-| Ball ring flickers or jumps to a sock | Tap the ball again to re-sample its color. Change socks or ball if they match. |
+| Ball ring flickers or jumps to a sock | Tap the ball again to re-sample its color. Change socks or ball if they match. If the lock sticks to something small while the real ball is elsewhere, the tracker jumps to the bigger round blob after about a quarter second. |
+| Rings land off the edge | The video box now follows the camera's real aspect, so nothing is cropped. Rings are shifted as a pair to stay on screen; if the ball is near the edge you'll get "Move to the middle". |
 | Rings are far from the ball | Rings are placed where the ball sits when you press Start Drill. Set the ball first, then start. |
 | No sound | Tap anywhere once; browsers block audio until a touch. Voice cues need a browser with speech synthesis (Safari and Chrome have it). |
 | Replay export does nothing | Export needs `MediaRecorder`; Safari on iOS supports mp4 export in recent versions, older ones don't. Screen-record the replay instead. |

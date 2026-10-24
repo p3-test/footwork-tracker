@@ -68,8 +68,46 @@
     .setup-carousel { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
     .setup-card { min-width: 190px; flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px; font-size: 0.75rem; }
     .setup-card strong { color: var(--neon-green); display: block; margin-bottom: 4px; }
-    .tip-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 0.74rem; color: var(--text-muted); line-height: 1.35; }
+    .tip-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 0.74rem; color: var(--text-muted); line-height: 1.35; display: flex; gap: 10px; align-items: center; }
     .tip-card strong { color: var(--electric-blue); }
+    .tip-card .move { flex: 0 0 92px; }
+    .move svg { width: 100%; height: auto; display: block; }
+    .plan { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .plan span { font-size: 0.62rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
+    .plan span.done { color: var(--neon-green); border-color: var(--neon-green); opacity: 0.55; }
+    .plan span.now { color: #000; background: var(--neon-green); border-color: var(--neon-green); }
+    .rest-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.88); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 6px; z-index: 55; text-align: center; padding: 16px; }
+    .rest-overlay.show { display: flex; }
+    .rest-overlay .label { font-size: 0.8rem; font-weight: 800; letter-spacing: 2px; color: var(--text-muted); }
+    .rest-overlay .big { font-size: 4.5rem; font-weight: 900; color: var(--electric-blue); line-height: 1; text-shadow: 0 0 24px var(--electric-blue-glow); }
+    .rest-overlay .next { font-size: 1rem; font-weight: 800; }
+    .rest-overlay .next span { color: var(--neon-green); }
+    .rest-overlay .move { width: 170px; }
+    .rest-overlay small { color: var(--text-muted); font-size: 0.75rem; max-width: 85%; }
+    .rest-overlay button { margin-top: 6px; }
+    /* Move animations (used by the per-drill illustration) */
+    .mv { transform-box: fill-box; transform-origin: center; }
+    .mv-side { animation: mv-side 1.4s ease-in-out infinite; }
+    .mv-tapL { animation: mv-tapL 1.6s ease-in-out infinite; }
+    .mv-tapR { animation: mv-tapR 1.6s ease-in-out infinite; }
+    .mv-ldrag { animation: mv-ldrag 2.2s ease-in-out infinite; }
+    .mv-wall { animation: mv-wall 1.8s ease-in-out infinite; }
+    .mv-kick { animation: mv-kick 2s ease-in-out infinite; transform-origin: 10% 90%; }
+    .mv-shoot { animation: mv-shoot 2s ease-in infinite; }
+    @keyframes mv-side { 0%, 100% { transform: translateX(-26px); } 50% { transform: translateX(26px); } }
+    @keyframes mv-tapL { 0%, 40%, 100% { transform: translate(0, 0); } 15% { transform: translate(16px, -20px); } }
+    @keyframes mv-tapR { 0%, 50%, 100% { transform: translate(0, 0); } 65% { transform: translate(-16px, -20px); } }
+    @keyframes mv-ldrag { 0% { transform: translate(0, 0); } 35% { transform: translate(0, 16px); } 70% { transform: translate(-44px, 16px); } 85% { transform: translate(-44px, 16px); } 100% { transform: translate(0, 0); } }
+    @keyframes mv-wall { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-44px); } }
+    @keyframes mv-kick { 0%, 20% { transform: rotate(0); } 35% { transform: rotate(-45deg); } 50% { transform: rotate(25deg); } 70%, 100% { transform: rotate(0); } }
+    @keyframes mv-shoot { 0%, 48% { transform: translateX(0); opacity: 1; } 72% { transform: translateX(70px); opacity: 0; } 73%, 100% { transform: translateX(0); opacity: 1; } }
+    .wk-card { background: var(--card); border: 1px solid var(--neon-green); border-radius: 8px; padding: 10px; font-size: 0.75rem; display: none; }
+    .wk-card.show { display: block; }
+    .wk-card h3 { font-size: 0.85rem; margin-bottom: 4px; }
+    .wk-card h3 span { color: var(--neon-green); }
+    .wk-card .row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid var(--border); }
+    .wk-card .row:last-child { border: none; }
+    .wk-card .row b { color: var(--neon-green); }
     .cam-error { background: #2a0f16; border: 1px solid var(--alert-red); border-radius: 8px; padding: 10px; font-size: 0.75rem; display: none; line-height: 1.4; }
     .cam-error button { margin-top: 6px; }
 
@@ -265,6 +303,12 @@
     <!-- ================= TRAIN ================= -->
     <section id="trainScreen" class="screen">
       <div class="controls-grid">
+        <div class="select-item" style="grid-column: 1 / -1;">
+          <label>Guided workout</label>
+          <select id="workoutSelect">
+            <option value="none">None — single drill (pick below)</option>
+          </select>
+        </div>
         <div class="select-item">
           <label>Drill</label>
           <select id="drillSelect">
@@ -321,6 +365,14 @@
         <div class="combo-banner" id="comboBanner">🔥 5x STREAK!</div>
         <div class="ball-lost" id="ballLost">Can't see the ball — bring it into view</div>
         <div class="countdown-overlay" id="countdownOverlay">3</div>
+        <div class="rest-overlay" id="restOverlay">
+          <div class="label">REST</div>
+          <div class="big" id="restBig">15</div>
+          <div class="next">Next: <span id="restNext"></span></div>
+          <div class="move" id="restMove"></div>
+          <small id="restTip"></small>
+          <button class="metro-btn" id="restSkip">Skip rest</button>
+        </div>
         <div class="cam-off" id="trainCamOff"><div>Camera is off</div><small id="trainCamOffNote"></small><button class="metro-btn" data-cam-on>Turn camera on</button></div>
         <div class="hud-feedback" id="hudFeedback">
           <span id="fbTitle"></span>
@@ -345,6 +397,7 @@
 
     <!-- ================= VAULT ================= -->
     <section id="vaultScreen" class="screen">
+      <div class="wk-card" id="wkCard"></div>
       <div class="vault-grid">
         <div class="v-cell"><strong id="vaultHighScore">0</strong><span>Best Reps</span></div>
         <div class="v-cell"><strong id="vaultTotalTime">0m</strong><span>Training Time</span></div>
@@ -545,7 +598,7 @@
       }
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false
+          video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 640 } }, audio: false // portrait preferred; the UI adapts to whatever the camera gives
         });
       } catch (err) {
         console.error(err);
@@ -576,15 +629,19 @@
   }
   async function toggleCamera() {
     if (screen === 'vaultScreen') return;
-    if (cameraOn()) { if (live && !paused) pauseSession(); stopCamera(); keepAwake(false); setStatus(live ? 'PAUSED' : 'CAMERA OFF'); }
-    else { await startCamera(); keepAwake(true); if (live && paused) setStatus('PAUSED'); }
+    if (cameraOn()) { if (pausable() && !paused) pauseSession(); stopCamera(); keepAwake(false); setStatus(paused ? 'PAUSED' : 'CAMERA OFF'); }
+    else { await startCamera(); keepAwake(true); if (paused) setStatus('PAUSED'); }
   }
   $('camBtn').onclick = toggleCamera;
   document.querySelectorAll('[data-cam-on]').forEach(b => b.onclick = toggleCamera);
   function syncCanvas(video, canvas) {
     const w = video.videoWidth, h = video.videoHeight;
     if (!w || !h || video.readyState < 2) return false;
-    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w; canvas.height = h;
+      // The video box follows the camera's real aspect so nothing the camera sees is cropped away.
+      const box = canvas.parentElement; if (box) box.style.aspectRatio = `${w} / ${h}`;
+    }
     aspect = h / w;
     return true;
   }
@@ -649,8 +706,8 @@
       mask[i] = ok ? 1 : 0;
     }
     const asp = H / W;
-    const minArea = Math.max(8, Math.round(n * 0.0006));
-    let best = null, bestScore = 0;
+    const minArea = Math.max(8, Math.round(n * 0.0005));
+    let best = null, bestScore = 0, alt = null, altScore = 0;
     for (let i = 0; i < n; i++) {
       if (!mask[i] || seen[i]) continue;
       let sp = 0; stack[sp++] = i; seen[i] = 1;
@@ -670,15 +727,19 @@
       const fill = area / (bw * bh);
       if (fill < 0.35) continue;                       // a disc fills ~78% of its box
       const cx = (sx / area + 0.5) / W, cy = (sy / area + 0.5) / H;
-      let score = area * fill;
-      if (prev) {                                      // stick with the blob near the last position
+      const blob = { x: cx, y: cy, r: Math.max(bw, bh) / (2 * W), area, mean: { r: cr / area, g: cg / area, b: cb / area } };
+      const raw = area * fill;
+      let score = raw;
+      if (prev) {                                      // prefer the blob near the last position
         const dd = Math.hypot(cx - prev.x, (cy - prev.y) * asp) / Math.max(prev.r, 0.02);
-        score *= 1 / (1 + (dd / 4) * (dd / 4));
+        score *= 1 / (1 + (dd / 8) * (dd / 8));
       } else {
         score *= 0.35 + 0.65 * cy;                     // first lock: the ball is usually low in frame
       }
-      if (score > bestScore) { bestScore = score; best = { x: cx, y: cy, r: Math.max(bw, bh) / (2 * W), area, mean: { r: cr / area, g: cg / area, b: cb / area } }; }
+      if (score > bestScore) { bestScore = score; best = blob; }
+      if (raw > altScore) { altScore = raw; alt = blob; }   // biggest round blob regardless of position
     }
+    if (best && alt && alt !== best) best.alt = alt;
     return best;
   }
   // Slowly moves the target color toward what the tracked ball currently looks like, so the lock
@@ -734,8 +795,12 @@
       this.ctx.drawImage(video, 0, 0, W, H);
       const data = this.ctx.getImageData(0, 0, W, H).data;
       const prev = (this.ever && now - this.lastSeen < 600) ? { x: this.x, y: this.y, r: this.r } : null;
-      const b = findBall(data, W, H, this.target, prev);
+      let b = findBall(data, W, H, this.target, prev);
       this.maskW = W; this.maskH = H; this.lastArea = b ? b.area : 0;
+      // Weak-lock escape: if a much bigger round blob sits elsewhere for ~8 frames, the lock is
+      // probably on a sock or a patch of floor and the real ball moved. Jump to the big one.
+      if (b && b.alt && b.alt.area > 3 * b.area) { this.altStreak = (this.altStreak || 0) + 1; if (this.altStreak >= 8) { b = b.alt; this.found = false; this.altStreak = 0; } }
+      else this.altStreak = 0;
       if (b) {
         if (this.found) {
           this.x = lerp(this.x, b.x, 0.6); this.y = lerp(this.y, b.y, 0.6);
@@ -746,6 +811,7 @@
         this.hist.push({ t: now, x: this.x, y: this.y });
       } else if (now - this.lastSeen > 400) {
         this.found = false; // a foot covering the ball for <400ms does not count as lost
+        this.altStreak = 0;
       }
       while (this.hist.length && now - this.hist[0].t > 2000) this.hist.shift();
     }
@@ -953,10 +1019,15 @@
       // Rings are placed around wherever the ball is when it is first seen after the countdown,
       // and re-centred if the ball comes to rest somewhere else (kids drift).
       place(s, activeIdx = 0) {
-        const r = tracker.r, rr = 1.5 * r, off = 2.4 * r;
+        const r = tracker.r, rr = 1.5 * r, off = 2.4 * r, margin = rr + 0.02;
+        // Shift the pair as a unit so both rings stay fully on screen with their spacing intact.
+        let cx = tracker.x;
+        if (cx - off < margin) cx = margin + off;
+        if (cx + off > 1 - margin) cx = 1 - margin - off;
+        if (Math.abs(cx - tracker.x) > 0.5 * r) hint('MOVE TO THE MIDDLE', 'Ball is close to the edge', 'info');
         // Small image x shows on the player's right after mirroring, hence the labels.
-        s.rings = [{ x: clamp(tracker.x - off, rr, 1 - rr), y: tracker.y, rr, label: 'R', active: activeIdx === 0 },
-                   { x: clamp(tracker.x + off, rr, 1 - rr), y: tracker.y, rr, label: 'L', active: activeIdx === 1 }];
+        s.rings = [{ x: cx - off, y: tracker.y, rr, label: 'R', active: activeIdx === 0 },
+                   { x: cx + off, y: tracker.y, rr, label: 'L', active: activeIdx === 1 }];
         s.restSince = 0;
         setDirectionHint(s.rings[activeIdx].label);
       },
@@ -1150,24 +1221,181 @@
   };
 
   /* =========================================================
+     GUIDED WORKOUTS
+     ========================================================= */
+  const WORKOUTS = {
+    quick: { name: 'Quick Touch', mins: 5, desc: 'Five fast blocks. Good before school or as a warm-up.', blocks: [
+      { drill: 'foundations', seconds: 40, goal: 40 }, { rest: 15 }, { drill: 'toe_taps', seconds: 40, goal: 40 }, { rest: 15 },
+      { drill: 'l_drags', seconds: 40, goal: 12 }, { rest: 15 }, { drill: 'foundations', seconds: 45, goal: 50 }, { rest: 15 }, { drill: 'toe_taps', seconds: 45, goal: 45 } ] },
+    builder: { name: 'Footwork Builder', mins: 9, desc: 'Seven one-minute blocks cycling the three ground moves.', blocks: [
+      { drill: 'foundations', seconds: 60, goal: 60 }, { rest: 20 }, { drill: 'toe_taps', seconds: 60, goal: 60 }, { rest: 20 }, { drill: 'l_drags', seconds: 60, goal: 18 }, { rest: 20 },
+      { drill: 'foundations', seconds: 60, goal: 65 }, { rest: 20 }, { drill: 'toe_taps', seconds: 60, goal: 65 }, { rest: 20 }, { drill: 'l_drags', seconds: 60, goal: 20 }, { rest: 20 }, { drill: 'foundations', seconds: 60, goal: 70 } ] },
+    touch: { name: 'First Touch', mins: 7, desc: 'Wall passes with footwork in between. Needs a wall.', blocks: [
+      { drill: 'foundations', seconds: 45, goal: 45 }, { rest: 15 }, { drill: 'wall_pass', seconds: 75, goal: 15 }, { rest: 20 }, { drill: 'wall_pass', seconds: 75, goal: 15 }, { rest: 20 },
+      { drill: 'toe_taps', seconds: 45, goal: 45 }, { rest: 15 }, { drill: 'wall_pass', seconds: 75, goal: 18 } ] },
+    striker: { name: 'Striker', mins: 6, desc: 'Warm up the feet, then two blocks of scored strikes.', blocks: [
+      { drill: 'foundations', seconds: 45, goal: 45 }, { rest: 15 }, { drill: 'kicking_form', seconds: 90, goal: 8 }, { rest: 20 }, { drill: 'kicking_form', seconds: 90, goal: 8 }, { rest: 15 }, { drill: 'toe_taps', seconds: 45, goal: 45 } ] }
+  };
+  // Small animated illustration of each move (two boots and a ball, front view).
+  function moveSvg(id) {
+    const boot = (x, cls = '') => `<g class="mv ${cls}"><rect x="${x}" y="50" width="28" height="14" rx="6" fill="#00E5FF"/><rect x="${x + 5}" y="38" width="12" height="16" rx="4" fill="#00E5FF" opacity="0.75"/></g>`;
+    const ball = (x, y, cls = '') => `<circle class="mv ${cls}" cx="${x}" cy="${y}" r="9" fill="#FF6A00" stroke="#fff" stroke-width="1.5"/>`;
+    const floor = '<line x1="4" y1="66" x2="116" y2="66" stroke="#2a3a50" stroke-width="2"/>';
+    let body = '';
+    if (id === 'foundations') body = boot(10) + boot(82) + ball(60, 57, 'mv-side');
+    else if (id === 'toe_taps') body = boot(18, 'mv-tapL') + boot(74, 'mv-tapR') + ball(60, 57);
+    else if (id === 'l_drags') body = boot(72) + ball(62, 40, 'mv-ldrag');
+    else if (id === 'wall_pass') body = '<rect x="4" y="4" width="112" height="5" rx="2" fill="#8396a8"/>' + boot(46) + ball(60, 57, 'mv-wall');
+    else if (id === 'kicking_form') body = boot(14) + boot(56, 'mv-kick') + ball(100, 57, 'mv-shoot');
+    return `<svg viewBox="0 0 120 72" xmlns="http://www.w3.org/2000/svg">${floor}${body}</svg>`;
+  }
+  (function fillWorkoutSelect() {
+    const sel = $('workoutSelect');
+    Object.entries(WORKOUTS).forEach(([id, w]) => { const o = document.createElement('option'); o.value = id; o.innerText = `${w.name} · ${w.mins} min`; sel.appendChild(o); });
+  })();
+  const workoutSelected = () => $('workoutSelect').value !== 'none';
+  const shortName = (id) => DRILLS[id].name.split(' (')[0];
+  const blockLabel = (b) => b.rest ? `Rest ${b.rest}s` : `${shortName(b.drill)} ${b.seconds}s`;
+  function renderPlan() {
+    const w = WORKOUTS[$('workoutSelect').value]; if (!w) return;
+    const idx = wk ? wk.idx : -1;
+    const curBlock = wk && w.blocks[idx] && !w.blocks[idx].rest ? w.blocks[idx] : (w.blocks[idx + 1] && w.blocks[idx + 1].drill ? w.blocks[idx + 1] : w.blocks.find(b => b.drill));
+    const chips = w.blocks.map((b, i) => `<span class="${i < idx ? 'done' : i === idx ? 'now' : ''}">${blockLabel(b)}</span>`).join('');
+    $('drillTip').innerHTML = `<div class="move">${moveSvg(curBlock.drill)}</div><div><strong>${w.name}</strong> · ${w.mins} min. ${w.desc}<div class="plan">${chips}</div></div>`;
+  }
+  $('workoutSelect').onchange = () => {
+    if (wk) finishWorkout(true); else if (live) endSession(repCount > 0);
+    const on = workoutSelected();
+    $('drillSelect').disabled = on; $('challengeSelect').disabled = on;
+    $('startDrillBtn').innerText = on ? 'Start Workout' : 'Start Drill';
+    setDrillUi();
+  };
+  function startWorkout() {
+    const id = $('workoutSelect').value, def = WORKOUTS[id]; if (!def) return;
+    if (wk) finishWorkout(true, false); else if (live) endSession(false);
+    audio();
+    wk = { id, def, idx: -1, results: [], startT: performance.now(), resting: false, restTimer: null, restLeft: 0 };
+    $('startDrillBtn').disabled = true;
+    coach.say(`${def.name}. ${def.blocks.filter(b => b.drill).length} blocks, about ${def.mins} minute${def.mins === 1 ? '' : 's'}. Let's go.`, 'high');
+    setTimeout(nextBlock, 3500);
+  }
+  function nextBlock() {
+    if (!wk) return;
+    wk.idx++; const b = wk.def.blocks[wk.idx];
+    renderPlan();
+    if (!b) return finishWorkout(false);
+    if (b.rest) return startRest(b);
+    drillId = b.drill; $('drillSelect').value = drillId; setDrillUi();
+    challenge = 'workout'; timedSeconds = b.seconds;
+    $('startDrillBtn').disabled = true;
+    runCountdown(() => {
+      if (!wk) return;
+      $('startDrillBtn').disabled = false; $('startDrillBtn').innerText = 'Restart Workout';
+      beginLive();
+      coach.say(`${DRILLS[drillId].go}${b.goal ? ` Try for ${b.goal}.` : ''}`, 'high');
+    });
+  }
+  function startRest(b) {
+    const next = wk.def.blocks[wk.idx + 1];
+    const nextName = next && next.drill ? shortName(next.drill) : 'Finish';
+    const tip = next && next.drill ? DRILLS[next.drill].cues[0] : '';
+    wk.resting = true; wk.restLeft = b.rest; wk.restCalled = new Set();
+    $('restNext').innerText = nextName; $('restMove').innerHTML = next && next.drill ? moveSvg(next.drill) : '';
+    $('restTip').innerText = tip; $('restBig').innerText = b.rest; $('restOverlay').classList.add('show');
+    setStatus('REST'); $('startDrillBtn').disabled = false;
+    coach.say(`Rest. Next up, ${nextName}. ${tip}`, 'high');
+    clearInterval(wk.restTimer);
+    wk.restTimer = setInterval(() => {
+      if (!wk || paused) return;
+      wk.restLeft -= 0.25;
+      const s = Math.ceil(wk.restLeft); $('restBig').innerText = Math.max(0, s);
+      if (s <= 3 && s >= 1 && !wk.restCalled.has(s)) { wk.restCalled.add(s); coach.say(['', 'One', 'Two', 'Three'][s], 'high'); synthTone(440, 'sine', 0.15); }
+      if (wk.restLeft <= 0) endRest();
+    }, 250);
+  }
+  function endRest() {
+    if (!wk) return;
+    clearInterval(wk.restTimer); wk.restTimer = null; wk.resting = false;
+    $('restOverlay').classList.remove('show');
+    nextBlock();
+  }
+  $('restSkip').onclick = () => { if (wk && wk.resting) endRest(); };
+  function captureBlock() { // records the live block into the workout results and stops it
+    const b = wk.def.blocks[wk.idx]; if (!b || b.rest || !live) return;
+    const seconds = Math.round((performance.now() - sessionStart) / 1000);
+    const form = formRatings.length ? Math.round(formRatings.reduce((a, c) => a + c, 0) / formRatings.length) : null;
+    wk.results.push({ drill: drillId, name: shortName(drillId), reps: repCount, seconds, goal: b.goal || null, form, bestCombo });
+    live = false; finished = true; stopMetronome(); setDirectionHint(null); $('bigRep').classList.remove('show');
+  }
+  function endBlock() {
+    if (!wk) return;
+    const reps = repCount, goal = wk.def.blocks[wk.idx].goal;
+    captureBlock();
+    playWhistle(); buzz([100, 50, 200]);
+    showHud('TIME!', `${reps} reps${goal ? ` / goal ${goal}` : ''}`, goal && reps >= goal ? 'good' : 'info', 2500);
+    coach.say(`Time! ${reps}.${goal && reps >= goal ? ' Goal hit!' : ''}`, 'high');
+    setTimeout(nextBlock, 2200);
+  }
+  function finishWorkout(early, save = true) {
+    if (!wk) return;
+    const w = wk;
+    clearInterval(w.restTimer); $('restOverlay').classList.remove('show');
+    if (live) captureBlock();
+    wk = null; // cleared before anything that might re-enter (endSession, showScreen)
+    paused = false; $('pauseBtn').innerText = 'Pause'; $('startDrillBtn').innerText = 'Start Workout'; $('startDrillBtn').disabled = false;
+    clearInterval(runCountdown._t); $('countdownOverlay').style.display = 'none';
+    const results = w.results;
+    if (!save || !results.length) { setStatus('CAMERA ON'); coach.stop(); setDrillUi(); return; }
+    const total = results.reduce((a, r) => a + r.reps, 0);
+    const seconds = Math.round((performance.now() - w.startT) / 1000);
+    const forms = results.filter(r => r.form !== null).map(r => r.form);
+    const form = forms.length ? Math.round(forms.reduce((a, c) => a + c, 0) / forms.length) : null;
+    const logs = store.get('apex_logs_v2', []);
+    const pb = logs.filter(l => l.workout === w.id && !l.early).reduce((m, l) => Math.max(m, l.reps), 0);
+    const d = new Date();
+    const record = { ts: d.getTime(), day: dayKey(d), drill: 'workout', workout: w.id, drillName: `Workout · ${w.def.name}${early ? ' (partial)' : ''}`, reps: total, seconds, form, blocks: results, early };
+    logs.unshift(record); store.set('apex_logs_v2', logs.slice(0, 200)); store.set('apex_last_workout', record);
+    const best = results.reduce((m, r) => (r.reps > m.reps ? r : m), results[0]);
+    const withGoal = results.filter(r => r.goal), hit = withGoal.filter(r => r.reps >= r.goal).length;
+    let line = early ? `Workout stopped. ${total} touches in ${Math.max(1, Math.round(seconds / 60))} minutes.`
+      : `Workout complete! ${total} touches in ${Math.max(1, Math.round(seconds / 60))} minutes. Best block, ${best.name}, ${best.reps}.`;
+    if (withGoal.length) line += ` ${hit} of ${withGoal.length} goals hit.`;
+    if (!early && pb && total > pb) line += ' New workout record!';
+    if (!early) { confetti(); playWhistle(); buzz([100, 50, 100, 50, 300]); }
+    coach.say(line, 'high');
+    setStatus('WORKOUT SAVED'); setDrillUi();
+    showScreen('vaultScreen');
+  }
+  function renderWorkoutCard() {
+    const r = store.get('apex_last_workout', null), el = $('wkCard');
+    if (!r || !r.blocks) { el.classList.remove('show'); return; }
+    const rows = r.blocks.map(b => `<div class="row"><span>${b.name} · ${b.seconds}s</span><span><b>${b.reps}</b>${b.goal ? ` / ${b.goal}` : ''}${b.form !== null && b.form !== undefined ? ` · form ${b.form}%` : ''}</span></div>`).join('');
+    const when = new Date(r.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    el.innerHTML = `<h3>Last workout: <span>${r.drillName.replace('Workout · ', '')}</span></h3><div class="row"><span>${when} · ${Math.floor(r.seconds / 60)}:${String(r.seconds % 60).padStart(2, '0')}</span><span><b>${r.reps}</b> total</span></div>${rows}`;
+    el.classList.add('show');
+  }
+
+  /* =========================================================
      SESSION STATE
      ========================================================= */
   let live = false, paused = false, pauseT = 0, drillId = 'foundations', drill = null, challenge = 'free_play';
+  let wk = null, timedSeconds = 30;
+  const pausable = () => live || (wk && wk.resting);
   function pauseSession() {
-    if (!live || paused) return;
-    paused = true; pauseT = performance.now(); stopMetronome(); coach.stop();
+    if (paused || !pausable()) return;
+    paused = true; pauseT = performance.now(); if (live) stopMetronome(); coach.stop();
     setStatus('PAUSED'); $('pauseBtn').innerText = 'Resume';
     showHud('PAUSED', 'Tap Resume when ready', 'info', 2000);
   }
   async function resumeSession() {
-    if (!live || !paused) return;
+    if (!paused || !pausable()) return;
     if (!cameraOn()) { const ok = await startCamera(); if (!ok) return; keepAwake(true); }
-    sessionStart += performance.now() - pauseT; paused = false;
-    startMetronome(); setStatus('TRACKING LIVE'); $('pauseBtn').innerText = 'Pause';
+    if (live) { sessionStart += performance.now() - pauseT; startMetronome(); }
+    paused = false; setStatus(live ? 'TRACKING LIVE' : 'REST'); $('pauseBtn').innerText = 'Pause';
     speak('And go!', true);
   }
   $('pauseBtn').onclick = () => {
-    if (!live) { showHud('NOT STARTED', 'Press Start Drill first', 'info'); return; }
+    if (!pausable() && !paused) { showHud('NOT STARTED', 'Press Start first', 'info'); return; }
     if (paused) resumeSession();
     else { pauseSession(); stopCamera(); keepAwake(false); }
   };
@@ -1183,7 +1411,8 @@
       if (m > cs.minute) { cs.minute = m; coach.say(m === 1 ? 'One minute' : `${m} minutes`, 'normal'); }
     } else {
       const s = Math.ceil(left);
-      const lines = { 15: 'Halfway', 10: 'Ten seconds', 5: 'Five', 4: 'Four', 3: 'Three', 2: 'Two', 1: 'One' };
+      const lines = { 10: 'Ten seconds', 5: 'Five', 4: 'Four', 3: 'Three', 2: 'Two', 1: 'One' };
+      if (timedSeconds >= 24) lines[Math.round(timedSeconds / 2)] = 'Halfway';
       if (lines[s] && !cs.called.has(s)) { cs.called.add(s); if (s <= 5) cs.finalCount = true; coach.say(lines[s], s <= 5 ? 'high' : 'normal'); }
       if (left <= 6) return; // keep the last seconds clear for the count
     }
@@ -1249,9 +1478,9 @@
     if (challenge === 'free_play') {
       $('hudTime').innerText = `${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, '0')}`;
     } else {
-      left = Math.max(0, 30 - elapsed);
+      left = Math.max(0, timedSeconds - elapsed);
       $('hudTime').innerText = `${Math.ceil(left)}s`;
-      if (elapsed > 5 && left > 6 && repTimes.length / 3 < 1.33 && now - lastSpeedWarn > 6000 && drillId !== 'kicking_form') {
+      if (elapsed > 5 && left > 6 && repTimes.length / 3 < 1.33 && now - lastSpeedWarn > 6000 && (drillId === 'foundations' || drillId === 'toe_taps')) {
         lastSpeedWarn = now; showHud('SPEED UP!', 'Quicker touches', 'warn', 1000); coach.say('Faster!', 'normal');
       }
     }
@@ -1273,21 +1502,27 @@
   }
   async function startDrill() {
     if (!cameraOn()) { const ok = await startCamera(); if (!ok) { showHud('NO CAMERA', 'Allow camera access', 'warn'); return; } keepAwake(true); }
+    if (workoutSelected()) return startWorkout();
     if (live) endSession(false);
     audio();
+    challenge = $('challengeSelect').value; timedSeconds = 30;
     $('startDrillBtn').disabled = true;
     runCountdown(() => {
       $('startDrillBtn').disabled = false; $('startDrillBtn').innerText = 'Restart Drill';
-      paused = false; $('pauseBtn').innerText = 'Pause';
-      repCount = 0; combo = 0; bestCombo = 0; lastRepT = 0; repTimes = []; formRatings = []; finished = false; lastSpeedWarn = 0; resetCoach();
-      challenge = $('challengeSelect').value;
-      drill = makeDrill(); updateHud(); $('bigRep').classList.add('show');
-      sessionStart = performance.now(); live = true;
-      startMetronome(); setStatus('TRACKING LIVE'); speak(DRILLS[drillId].go, true);
+      beginLive();
+      speak(DRILLS[drillId].go, true);
     });
+  }
+  function beginLive() {
+    paused = false; $('pauseBtn').innerText = 'Pause';
+    repCount = 0; combo = 0; bestCombo = 0; lastRepT = 0; repTimes = []; formRatings = []; finished = false; lastSpeedWarn = 0; resetCoach();
+    drill = makeDrill(); updateHud(); $('bigRep').classList.add('show');
+    sessionStart = performance.now(); live = true;
+    startMetronome(); setStatus('TRACKING LIVE');
   }
   function finishChallenge(victory) {
     if (finished) return; finished = true;
+    if (wk) return endBlock();
     if (challenge === 'sprint_30') {
       playWhistle(); confetti(); buzz([100, 50, 300]); showHud('TIME!', `${repCount} reps`, 'good', 3000); speak('Time!', true);
       captureClip(`30s sprint · ${repCount} reps`);
@@ -1300,6 +1535,7 @@
     setTimeout(() => endSession(true), 1200);
   }
   function endSession(save) {
+    if (wk) return finishWorkout(true, save);
     if (!live) return;
     if (paused) { sessionStart += performance.now() - pauseT; paused = false; }
     $('pauseBtn').innerText = 'Pause';
@@ -1472,9 +1708,10 @@
     $('vaultHighScore').innerText = best;
     $('vaultTotalTime').innerText = `${Math.round(secs / 60)}m`;
     $('vaultStreak').innerText = dayStreak(logs);
+    renderWorkoutCard();
     renderClips();
   }
-  $('clearHistoryBtn').onclick = () => { if (confirm('Delete all workout history on this device?')) { store.del('apex_logs_v2'); store.del('apex_dribble_logs'); store.set('apex_logs_v2', []); renderVault(); } };
+  $('clearHistoryBtn').onclick = () => { if (confirm('Delete all workout history on this device?')) { store.del('apex_logs_v2'); store.del('apex_dribble_logs'); store.del('apex_last_workout'); store.set('apex_logs_v2', []); renderVault(); } };
 
   /* =========================================================
      CONFETTI
@@ -1495,7 +1732,7 @@
      ========================================================= */
   let screen = 'setupScreen';
   async function showScreen(id) {
-    if (live && id !== 'trainScreen') endSession(true);
+    if (id !== 'trainScreen') { if (wk) finishWorkout(true); else if (live) endSession(true); }
     screen = id;
     document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
     document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b.dataset.screen === id));
@@ -1506,10 +1743,11 @@
   $('startBtn').onclick = () => showScreen('trainScreen');
   $('repickBtn').onclick = () => { showScreen('setupScreen'); $('repickBallBtn').click(); };
   $('startDrillBtn').onclick = startDrill;
-  $('endBtn').onclick = () => { if (live) endSession(true); else showScreen('vaultScreen'); };
+  $('endBtn').onclick = () => { if (wk) finishWorkout(true); else if (live) endSession(true); else showScreen('vaultScreen'); };
 
   function setDrillUi() {
-    $('drillTip').innerHTML = DRILLS[drillId].tip;
+    if (workoutSelected()) renderPlan();
+    else $('drillTip').innerHTML = `<div class="move">${moveSvg(drillId)}</div><div>${DRILLS[drillId].tip}</div>`;
     $('strikeItem').style.display = drillId === 'kicking_form' ? 'block' : 'none';
     setDirectionHint(null);
     drill = makeDrill();
