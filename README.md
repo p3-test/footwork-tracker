@@ -21,7 +21,7 @@ Live: https://p3-test.github.io/footwork-tracker/
 
 | Drill | Rep counts when… | Feedback |
 | :--- | :--- | :--- |
-| **Foundations (Inside-Outs)** | The ball enters the lit ring. Rings sit 2.4 radii either side of where the ball starts. | Streak banner, rising ding pitch |
+| **Foundations (Inside-Outs)** | The ball reaches the lit ring, 2.6 ball radii left or right of where the ball rests. The rings slide forward and back with the ball, so only sideways travel counts and pushing the ball a bit forward or back while tapping doesn't matter. If the ball rests for 3 s, that becomes the new centre. | Big LEFT/RIGHT arrow, lower ding for right, higher for left |
 | **Toe Taps** | A toe lands on top of the ball (within 1.3 radii and above the ball's center) after being away from it. | "Alternate feet" if the same foot taps twice |
 | **L-Drags** | The ball rolls back (away from the camera) at least one radius, then across at least two radii within 1.5 s. | "Faster" if the push doesn't follow the drag |
 | **Wall Pass & Control** | The ball is struck (fast, more than 1.2 radii in 150 ms), travels at least 3 radii away or leaves the frame, then comes back and stops within 2.5 radii of a foot. | "Clean control" inside 1.6 radii, otherwise "Keep it closer" |
@@ -81,7 +81,7 @@ Timed modes nag with "Speed up!" if cadence drops below 1.33 reps per second.
 
 ## Setup that works
 
-1. Front camera facing the player, portrait. A low stand (6–12 inches) or a tripod tilted down both work. Stand back until the ball sits around the **middle of the picture**, not the bottom edge, so the rings land where you can see them. Foundations rings are placed around the ball when it's first seen after the countdown and re-centre if the ball comes to rest somewhere else; a big LEFT/RIGHT arrow at the top of the video shows the next target.
+1. Front camera facing the player, portrait. A low stand (6–12 inches) or a tripod tilted down both work. Stand back until the ball sits around the **middle of the picture**, not the bottom edge. Foundations rings are placed either side of the ball when it's first seen after the countdown, follow the ball's depth, and re-centre whenever the ball rests for 3 seconds; a big LEFT/RIGHT arrow at the top of the video shows the next target.
 2. Ball on the floor in view. **Tap it on screen** to lock its color. Re-tap any time the lighting changes.
 3. Use a **bright ball** (orange, yellow, pink) that doesn't match socks, shoes or the floor. White balls on light floors and dark balls in dim rooms track poorly.
 4. Feet and ball should both be in frame. Avoid direct sun glare on the floor.
@@ -100,9 +100,9 @@ Testing without a camera: `?demo=1` swaps in a synthetic feed with a rolling ora
 | Issue | Fix |
 | :--- | :--- |
 | "Camera permission denied" | Serve over https or localhost; allow camera for the site in browser settings and tap Retry. |
-| Ball ring flickers or jumps to a sock | Tap the ball again to re-sample its color. Change socks or ball if they match. If the lock sticks to something small while the real ball is elsewhere, the tracker jumps to the bigger round blob after about a quarter second. |
-| Rings land off the edge | The video box now follows the camera's real aspect, so nothing is cropped. Rings are shifted as a pair to stay on screen; if the ball is near the edge you'll get "Move to the middle". |
-| Rings are far from the ball | Rings are placed where the ball sits when you press Start Drill. Set the ball first, then start. |
+| Ball ring flickers or jumps to a sock | Tap the ball again to re-sample its color. Change socks or ball if they match. |
+| Rings land off the edge | The video box follows the camera's real aspect, so nothing is cropped. If the ball rests near an edge you'll get "Move to the middle". |
+| Rings are far from the ball | Rings are placed where the ball is first seen after the countdown, and move to the ball whenever it rests for 3 seconds. Stop the ball for a moment and they'll follow. |
 | No sound | Tap anywhere once; browsers block audio until a touch. Voice cues need a browser with speech synthesis (Safari and Chrome have it). |
 | Replay export does nothing | Export needs `MediaRecorder`; Safari on iOS supports mp4 export in recent versions, older ones don't. Screen-record the replay instead. |
 | Slow on an old phone | The app switches to the lite pose model automatically. Close other apps and turn off battery saver. |
