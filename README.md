@@ -35,6 +35,14 @@ Live: https://p3-test.github.io/footwork-tracker/
 
 These thresholds are heuristics tuned on a low, front-facing camera. They are in `DRILLS.kicking_form.K` in `index.html` if you want to adjust them.
 
+## Field-test aids
+
+* **Giant counter** on the video itself, with a green flash on every rep, readable from across the room.
+* **Wake lock** keeps the screen on while you're on the Setup or Train screens (Chrome Android, Safari 16.4+).
+* **Buzz**: a short vibration per rep, a double buzz on a form warning, a long one on a challenge win (Android; iOS Safari has no vibration API).
+* **Mask** toggle (Setup and Train): paints every pixel that matches the ball color pink and shows fps, pose latency, ball radius, blob area and the current color. If the ring jumps to a sock, turn this on and you'll see why. Screenshot it when reporting a tracking problem.
+* **Color adaptation**: once locked, the target color drifts slowly toward what the ball actually looks like, so moving into shade doesn't drop the lock. Hue can't drift more than 25° and saturation can't fall below 70% of the tapped color, so it won't creep onto skin or floor.
+
 ## Challenges
 
 * **Free Play** — open-ended, timer counts up.

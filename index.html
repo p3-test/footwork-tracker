@@ -125,6 +125,17 @@
       font-size: 0.72rem; font-weight: 800; display: none; z-index: 35; white-space: nowrap;
     }
     .ball-lost.show { display: block; }
+    /* Giant on-video counter: readable from across the room */
+    .big-rep { position: absolute; top: 6px; right: 12px; z-index: 34; text-align: right; pointer-events: none; display: none; }
+    .big-rep.show { display: block; }
+    .big-rep strong { display: block; font-size: 5.5rem; line-height: 1; font-weight: 900; color: #00FF66; text-shadow: 0 0 18px rgba(0,255,102,0.7), 0 2px 4px #000; transition: transform 0.12s ease; }
+    .big-rep strong.pop { transform: scale(1.25); }
+    .big-rep span { display: block; font-size: 1.1rem; font-weight: 900; color: #FF5500; text-shadow: 0 0 10px rgba(255,85,0,0.6), 0 1px 3px #000; min-height: 1.2em; }
+    .rep-flash { position: absolute; inset: 0; background: #00FF66; opacity: 0; pointer-events: none; z-index: 33; }
+    .rep-flash.go { animation: flash 0.25s ease-out; }
+    @keyframes flash { 0% { opacity: 0.45; } 100% { opacity: 0; } }
+    .debug-text { position: absolute; left: 8px; bottom: 60px; z-index: 34; font: 700 11px monospace; color: #ff4df0; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: pre; pointer-events: none; display: none; }
+    .debug-text.show { display: block; }
     .hud-feedback {
       position: absolute; bottom: 12px; left: 12px; right: 12px;
       background: rgba(0,0,0,0.85); border: 1px solid var(--electric-blue);
@@ -228,6 +239,9 @@
         <button class="chip" data-color="#22D36B" title="Green" style="background:#22D36B"></button>
         <button class="chip" data-color="#F2F2F2" title="White" style="background:#F2F2F2"></button>
       </div>
+      <div class="chip-row">
+        <label class="toggle"><input type="checkbox" id="maskToggleSetup"> show color mask (debug: pink = pixels matching the ball color)</label>
+      </div>
 
       <button id="startBtn" class="action-btn btn-green" disabled>Go to Training</button>
     </section>
@@ -272,12 +286,17 @@
           <button class="metro-btn" id="bpmUp">+</button>
           <label class="toggle"><input type="checkbox" id="metroToggle"> tick</label>
           <label class="toggle"><input type="checkbox" id="voiceToggle"> voice</label>
+          <label class="toggle"><input type="checkbox" id="hapticToggle"> buzz</label>
+          <label class="toggle"><input type="checkbox" id="maskToggle"> mask</label>
         </div>
       </div>
 
       <div class="cam-box viewport" id="viewport">
         <video id="trainVideo" autoplay playsinline muted></video>
         <canvas id="trainCanvas"></canvas>
+        <div class="rep-flash" id="repFlash"></div>
+        <div class="big-rep" id="bigRep"><strong id="bigRepNum">0</strong><span id="bigRepStreak"></span></div>
+        <div class="debug-text" id="debugText"></div>
         <div class="combo-banner" id="comboBanner">🔥 5x STREAK!</div>
         <div class="ball-lost" id="ballLost">Can't see the ball — bring it into view</div>
         <div class="countdown-overlay" id="countdownOverlay">3</div>
@@ -351,9 +370,22 @@
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
     del(k) { try { localStorage.removeItem(k); } catch (e) {} }
   };
-  const settings = Object.assign({ voice: true, bpm: 120, metro: false, strike: 'inside' }, store.get('apex_settings', {}));
+  const settings = Object.assign({ voice: true, bpm: 120, metro: false, strike: 'inside', haptics: true, mask: false }, store.get('apex_settings', {}));
   const saveSettings = () => store.set('apex_settings', settings);
   const setStatus = (t) => { $('engineStatus').innerText = t; };
+  function buzz(pattern) { if (settings.haptics && navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} } }
+
+  /* Screen wake lock: keeps the phone from sleeping mid-drill */
+  let wakeLock = null;
+  async function keepAwake(on) {
+    try {
+      if (on && 'wakeLock' in navigator && !wakeLock) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+    } catch (e) { wakeLock = null; }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && screen !== 'vaultScreen') keepAwake(true); });
 
   /* =========================================================
      AUDIO (Web Audio synth + optional voice)
@@ -375,7 +407,7 @@
   }
   const playTargetDing = (combo = 0) => synthTone(587.33 + Math.min(combo * 30, 400), 'sine', 0.12, 0.25);
   const playMetronomeTick = (high) => synthTone(high ? 1200 : 800, 'triangle', 0.03, 0.08);
-  const playBuzz = () => synthTone(220, 'sine', 0.2);
+  const playBuzz = () => { synthTone(180, 'sawtooth', 0.25, 0.3); buzz([60, 40, 60]); };
   function playWhistle() { synthTone(1800, 'triangle', 0.2, 0.25); setTimeout(() => synthTone(2400, 'triangle', 0.28, 0.3), 70); }
   let lastSpeak = 0;
   function speak(text, force = false) {
@@ -410,6 +442,12 @@
   $('metroToggle').onchange = (e) => { settings.metro = e.target.checked; saveSettings(); };
   $('voiceToggle').checked = settings.voice;
   $('voiceToggle').onchange = (e) => { settings.voice = e.target.checked; saveSettings(); if (settings.voice) speak('Voice on', true); };
+  $('hapticToggle').checked = settings.haptics;
+  $('hapticToggle').onchange = (e) => { settings.haptics = e.target.checked; saveSettings(); buzz(40); };
+  for (const id of ['maskToggle', 'maskToggleSetup']) {
+    $(id).checked = settings.mask;
+    $(id).onchange = (e) => { settings.mask = e.target.checked; saveSettings(); $('maskToggle').checked = settings.mask; $('maskToggleSetup').checked = settings.mask; };
+  }
   updateBpmDisplay();
 
   /* =========================================================
@@ -535,10 +573,10 @@
     for (let i = 0; i < n; i++) {
       if (!mask[i] || seen[i]) continue;
       let sp = 0; stack[sp++] = i; seen[i] = 1;
-      let area = 0, sx = 0, sy = 0, minx = W, maxx = 0, miny = H, maxy = 0;
+      let area = 0, sx = 0, sy = 0, minx = W, maxx = 0, miny = H, maxy = 0, cr = 0, cg = 0, cb = 0;
       while (sp) {
         const q = stack[--sp]; const x = q % W, y = (q - x) / W;
-        area++; sx += x; sy += y;
+        area++; sx += x; sy += y; cr += data[q * 4]; cg += data[q * 4 + 1]; cb += data[q * 4 + 2];
         if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
         if (x > 0) { const k = q - 1; if (mask[k] && !seen[k]) { seen[k] = 1; stack[sp++] = k; } }
         if (x < W - 1) { const k = q + 1; if (mask[k] && !seen[k]) { seen[k] = 1; stack[sp++] = k; } }
@@ -558,9 +596,20 @@
       } else {
         score *= 0.35 + 0.65 * cy;                     // first lock: the ball is usually low in frame
       }
-      if (score > bestScore) { bestScore = score; best = { x: cx, y: cy, r: Math.max(bw, bh) / (2 * W), area }; }
+      if (score > bestScore) { bestScore = score; best = { x: cx, y: cy, r: Math.max(bw, bh) / (2 * W), area, mean: { r: cr / area, g: cg / area, b: cb / area } }; }
     }
     return best;
+  }
+  // Slowly moves the target color toward what the tracked ball currently looks like, so the lock
+  // survives lighting changes. Hue may drift at most 25 degrees from the color that was tapped.
+  function adaptTarget(target, base, mean, alpha) {
+    const nt = makeTarget(lerp(target.r, mean.r, alpha), lerp(target.g, mean.g, alpha), lerp(target.b, mean.b, alpha), target.name); // fractional on purpose: rounding would stall small steps
+    if (nt.mode !== base.mode) return target;
+    if (base.mode === 'chroma') {
+      let dh = Math.abs(nt.h - base.h); if (dh > 180) dh = 360 - dh;
+      if (dh > 25 || nt.s < base.s * 0.7) return target;   // never drift toward a washed-out skin or floor tone
+    }
+    return nt;
   }
   /* @@ball-core-end */
 
@@ -573,9 +622,20 @@
     }
     reset() {
       this.found = false; this.ever = false; this.x = 0.5; this.y = 0.8; this.r = 0.05;
-      this.lastSeen = -1e9; this.lastT = 0; this.hist = [];
+      this.lastSeen = -1e9; this.lastT = 0; this.hist = []; this.lockedSince = 0; this.lastArea = 0;
     }
-    setTarget(t) { this.target = t; this.reset(); }
+    setTarget(t) { this.target = t; this.base = t; this.reset(); }
+    // Draws the color mask from the last frame scaled onto an overlay canvas (debug aid).
+    drawMask(ctx, W, H) {
+      if (!this.target || !_buf.mask || !this.maskW) return;
+      const mw = this.maskW, mh = this.maskH;
+      if (!this.maskCanvas) { this.maskCanvas = document.createElement('canvas'); this.maskCtx = this.maskCanvas.getContext('2d'); }
+      if (this.maskCanvas.width !== mw || this.maskCanvas.height !== mh) { this.maskCanvas.width = mw; this.maskCanvas.height = mh; }
+      const img = this.maskCtx.createImageData(mw, mh), d = img.data, m = _buf.mask;
+      for (let i = 0, p = 0; i < mw * mh; i++, p += 4) { if (m[i]) { d[p] = 255; d[p + 1] = 77; d[p + 2] = 240; d[p + 3] = 150; } }
+      this.maskCtx.putImageData(img, 0, 0);
+      ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(this.maskCanvas, 0, 0, W, H); ctx.restore();
+    }
     sampleTarget(video, nx, ny) {
       const w = video.videoWidth, h = video.videoHeight; if (!w) return null;
       const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -594,11 +654,13 @@
       const data = this.ctx.getImageData(0, 0, W, H).data;
       const prev = (this.ever && now - this.lastSeen < 600) ? { x: this.x, y: this.y, r: this.r } : null;
       const b = findBall(data, W, H, this.target, prev);
+      this.maskW = W; this.maskH = H; this.lastArea = b ? b.area : 0;
       if (b) {
         if (this.found) {
           this.x = lerp(this.x, b.x, 0.6); this.y = lerp(this.y, b.y, 0.6);
           this.r = lerp(this.r, clamp(b.r, this.r * 0.8, this.r * 1.25), 0.2);
-        } else { this.x = b.x; this.y = b.y; this.r = b.r; }
+          if (now - this.lockedSince > 1000) this.target = adaptTarget(this.target, this.base, b.mean, 0.03);
+        } else { this.x = b.x; this.y = b.y; this.r = b.r; this.lockedSince = now; }
         this.found = true; this.ever = true; this.lastSeen = now; this.lastT = now;
         this.hist.push({ t: now, x: this.x, y: this.y });
       } else if (now - this.lastSeen > 400) {
@@ -669,6 +731,7 @@
     tracker.process(setupVideo, now);
     const W = setupCanvas.width, H = setupCanvas.height;
     sCtx.clearRect(0, 0, W, H);
+    if (settings.mask) tracker.drawMask(sCtx, W, H);
     const text = $('calibText'), icon = $('calibIcon'), btn = $('startBtn');
     if (!tracker.target) {
       text.innerText = 'Tap the ball on screen to lock its color'; icon.innerText = '🟡'; btn.disabled = true;
@@ -982,7 +1045,16 @@
   let repCount = 0, combo = 0, lastRepT = 0, repTimes = [], formRatings = [], sessionStart = 0, lastSpeedWarn = 0, finished = false;
 
   function makeDrill() { const def = DRILLS[drillId]; const s = { def }; def.setup(s); return s; }
-  function updateHud() { $('hudReps').innerText = repCount; $('hudCombo').innerText = `${combo}x`; }
+  function updateHud() {
+    $('hudReps').innerText = repCount; $('hudCombo').innerText = `${combo}x`;
+    $('bigRepNum').innerText = repCount; $('bigRepStreak').innerText = combo >= 2 ? `${combo}x streak` : '';
+  }
+  function repFx() {
+    const n = $('bigRepNum'); n.classList.remove('pop'); void n.offsetWidth; n.classList.add('pop');
+    clearTimeout(repFx._t); repFx._t = setTimeout(() => n.classList.remove('pop'), 130);
+    const f = $('repFlash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+    buzz(30);
+  }
   function showHud(title, desc, type, ms = 1500) {
     const hud = $('hudFeedback');
     $('fbTitle').innerText = title; $('fbDesc').innerText = desc;
@@ -1000,7 +1072,7 @@
     combo = (lastRepT && now - lastRepT < 2500) ? combo + 1 : 1;
     lastRepT = now; repTimes.push(now); repCount++;
     if (!opts.silent) { playTargetDing(combo); shake(); comboBadge(); }
-    updateHud();
+    updateHud(); repFx();
     if (repCount % 10 === 0) speak(String(repCount));
     if (challenge === 'cadence_40' && repCount >= 40) finishChallenge(true);
   }
@@ -1043,7 +1115,7 @@
       $('startDrillBtn').disabled = false; $('startDrillBtn').innerText = 'Restart Drill';
       repCount = 0; combo = 0; lastRepT = 0; repTimes = []; formRatings = []; finished = false; lastSpeedWarn = 0;
       challenge = $('challengeSelect').value;
-      drill = makeDrill(); updateHud();
+      drill = makeDrill(); updateHud(); $('bigRep').classList.add('show');
       sessionStart = performance.now(); live = true;
       startMetronome(); setStatus('TRACKING LIVE'); speak(DRILLS[drillId].go, true);
     });
@@ -1051,7 +1123,7 @@
   function finishChallenge(victory) {
     if (finished) return; finished = true;
     if (victory) {
-      playWhistle(); confetti(); showHud('GOAL!', `${repCount} reps`, 'good', 3000); speak(`Goal! ${repCount} reps`, true);
+      playWhistle(); confetti(); buzz([100, 50, 100, 50, 300]); showHud('GOAL!', `${repCount} reps`, 'good', 3000); speak(`Goal! ${repCount} reps`, true);
       captureClip(`Challenge win · ${repCount} reps`);
     } else {
       playWhistle(); showHud("TIME'S UP", `${repCount} of 40`, 'info', 3000); speak(`Time! ${repCount} reps`, true);
@@ -1060,7 +1132,7 @@
   }
   function endSession(save) {
     if (!live) return;
-    live = false; stopMetronome();
+    live = false; stopMetronome(); $('bigRep').classList.remove('show');
     const seconds = Math.round((performance.now() - sessionStart) / 1000);
     $('startDrillBtn').innerText = 'Start Drill';
     if (save && (repCount > 0 || formRatings.length)) {
@@ -1092,11 +1164,23 @@
     if (live) updateSession(now, feet);
     const W = trainCanvas.width, H = trainCanvas.height;
     tCtx.clearRect(0, 0, W, H);
+    if (settings.mask) tracker.drawMask(tCtx, W, H);
     drawSkeleton(tCtx, feet, W, H);
     drawBall(tCtx, W, H, now);
     if (drill) drill.def.draw(drill, tCtx, W, H, now);
     replay.tick(now, trainVideo, trainCanvas);
+    fpsCount++;
+    if (now - fpsT0 > 1000) { fpsValue = Math.round(fpsCount * 1000 / (now - fpsT0)); fpsCount = 0; fpsT0 = now; }
+    const dbg = $('debugText'); dbg.classList.toggle('show', settings.mask);
+    if (settings.mask) {
+      const t = tracker.target;
+      dbg.innerText = `fps ${fpsValue}  pose ${pose ? (poseReady ? Math.round(poseLatency) + 'ms' + (poseLite ? ' lite' : '') : 'loading') : 'off'}\n` +
+        `ball ${tracker.found ? 'LOCKED' : 'lost'}  r ${Math.round(tracker.r * W)}px  area ${tracker.lastArea}px\n` +
+        (t ? `color rgb(${Math.round(t.r)},${Math.round(t.g)},${Math.round(t.b)}) ${t.mode} h${Math.round(t.h)} s${t.s.toFixed(2)} v${t.v.toFixed(2)}` : 'no color') +
+        `\nfeet ${feet ? ['L', 'R'].map(s => s + (feet[s].foot ? '✓' : '✗')).join(' ') : 'none'}`;
+    }
   }
+  let fpsCount = 0, fpsT0 = 0, fpsValue = 0;
 
   /* =========================================================
      INSTANT REPLAY (rolling 3s frame buffer, played back in slow motion)
@@ -1236,8 +1320,8 @@
     screen = id;
     document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
     document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b.dataset.screen === id));
-    if (id === 'vaultScreen') { stopCamera(); setStatus('STANDBY'); renderVault(); }
-    else { await startCamera(); }
+    if (id === 'vaultScreen') { stopCamera(); keepAwake(false); setStatus('STANDBY'); renderVault(); }
+    else { await startCamera(); keepAwake(true); }
   }
   document.querySelectorAll('.nav-tab').forEach(b => b.onclick = () => showScreen(b.dataset.screen));
   $('startBtn').onclick = () => showScreen('trainScreen');
