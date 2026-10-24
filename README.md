@@ -14,7 +14,7 @@ Live: https://p3-test.github.io/footwork-tracker/
 | **Foot tracking** | MediaPipe Pose (loaded from CDN) gives knee, ankle, heel and toe landmarks. Only the lower body is used. If the full model is too slow for the device the app drops to the lite model automatically. |
 | **Drill logic** | All distances are measured in *ball radii*, so the same thresholds work whether the phone is 4 feet or 10 feet away. |
 | **Replays** | A rolling 3-second frame buffer of the mirrored camera view plus overlay. Strikes and challenge wins are saved as slow-motion clips you can scrub and export. |
-| **Audio** | Web Audio metronome and rep tones, pitch rising with your streak. Optional voice cues via the browser's speech synthesis. |
+| **Audio** | Web Audio metronome and rep tones, pitch rising with your streak. A voice coach via the browser's speech synthesis (see below). |
 | **Storage** | Session history and settings live in `localStorage`. Replay clips are kept in memory for the current visit only. |
 
 ## Drills
@@ -34,6 +34,14 @@ Live: https://p3-test.github.io/footwork-tracker/
 * Score = plant (50) + ankle (50). ≥ 90 is "Perfect strike", ≥ 70 "Good strike", otherwise "Fix your form".
 
 These thresholds are heuristics tuned on a low, front-facing camera. They are in `DRILLS.kicking_form.K` in `index.html` if you want to adjust them.
+
+## Voice coach
+
+Uses the phone's built-in speech voices, picked with the **Coach voice** dropdown on the Train screen (English voices listed; iPhone and Android ship several). The **voice** checkbox turns it off.
+
+What it says: a spoken 3-2-1 and a go cue per drill; streak shout-outs at 5, 10, 20, 30 and 50; the count every 10 reps; a technique cue every ~14 seconds per drill ("knees bent, stay on your toes"); a nudge if nothing happens for 8 seconds; "Halfway", "Ten seconds" and a five-count in timed modes; minute marks in free play; "Faster!" when cadence drops; strike verdicts in Kicking Form; and a summary at the end with reps, time, best streak and whether it's a personal best.
+
+Lines have priorities so the coach doesn't talk over itself: the countdown and results interrupt, counts and streaks queue, technique cues only fill silence. The last six seconds of a timed drill are kept clear for the count.
 
 ## Controls
 

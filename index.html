@@ -279,6 +279,10 @@
             <option value="cadence_40">40 Reps in 30s</option>
           </select>
         </div>
+        <div class="select-item">
+          <label>Coach voice</label>
+          <select id="voiceSelect"><option>Loading…</option></select>
+        </div>
         <div class="select-item" id="strikeItem" style="display:none;">
           <label>Strike type</label>
           <select id="strikeSelect">
@@ -423,18 +427,58 @@
   const playMetronomeTick = (high) => synthTone(high ? 1200 : 800, 'triangle', 0.03, 0.08);
   const playBuzz = () => { synthTone(180, 'sawtooth', 0.25, 0.3); buzz([60, 40, 60]); };
   function playWhistle() { synthTone(1800, 'triangle', 0.2, 0.25); setTimeout(() => synthTone(2400, 'triangle', 0.28, 0.3), 70); }
-  let lastSpeak = 0;
-  function speak(text, force = false) {
-    if (!settings.voice || !('speechSynthesis' in window)) return;
-    const now = performance.now();
-    if (!force && now - lastSpeak < 1200) return;
-    lastSpeak = now;
-    try {
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text); u.rate = 1.1; u.pitch = 1.05;
-      speechSynthesis.speak(u);
-    } catch (e) {}
-  }
+  /* Coach voice: a small speech queue with priorities.
+     high   = interrupts whatever is being said (countdown, results)
+     normal = queued, dropped if the queue is already two deep
+     low    = only spoken when nothing has been said for a few seconds (technique cues) */
+  const coach = {
+    voices: [], voice: null, queue: [], speaking: false, lastEnd: -1e9, current: null,
+    ok() { return settings.voice && 'speechSynthesis' in window; },
+    init() {
+      if (!('speechSynthesis' in window)) { $('voiceSelect').innerHTML = '<option>Not supported</option>'; return; }
+      const load = () => {
+        const all = speechSynthesis.getVoices();
+        this.voices = all.filter(v => /^en/i.test(v.lang)); if (!this.voices.length) this.voices = all;
+        this.pick(settings.voiceName); this.renderPicker();
+      };
+      load(); speechSynthesis.onvoiceschanged = load;
+    },
+    pick(name) {
+      this.voice = this.voices.find(v => v.name === name)
+        || this.voices.find(v => /natural|neural|premium|enhanced/i.test(v.name))
+        || this.voices.find(v => /samantha|google us english|aria|jenny|karen|daniel/i.test(v.name))
+        || this.voices[0] || null;
+    },
+    renderPicker() {
+      const sel = $('voiceSelect'); sel.innerHTML = '';
+      if (!this.voices.length) { sel.innerHTML = '<option>Default</option>'; return; }
+      this.voices.forEach(v => { const o = document.createElement('option'); o.value = v.name; o.innerText = `${v.name.replace(/^Microsoft |^Google /, '')} (${v.lang})`; sel.appendChild(o); });
+      if (this.voice) sel.value = this.voice.name;
+    },
+    say(text, priority = 'normal') {
+      if (!this.ok() || !text) return false;
+      const now = performance.now();
+      if (priority === 'low' && (this.speaking || this.queue.length || now - this.lastEnd < 3000)) return false;
+      if (priority === 'high') { this.queue = []; try { speechSynthesis.cancel(); } catch (e) {} this.speaking = false; this.current = null; }
+      else if (this.queue.length >= 2) return false;
+      this.queue.push(text); this.pump(); return true;
+    },
+    pump() {
+      if (this.speaking || !this.queue.length) return;
+      const text = this.queue.shift();
+      const u = new SpeechSynthesisUtterance(text);
+      if (this.voice) { u.voice = this.voice; u.lang = this.voice.lang; }
+      u.rate = 1.05; u.pitch = 1.0;
+      let finished = false;
+      const done = () => { if (finished) return; finished = true; this.speaking = false; this.current = null; this.lastEnd = performance.now(); this.pump(); };
+      u.onend = done; u.onerror = done;
+      this.speaking = true; this.current = u;
+      try { speechSynthesis.speak(u); } catch (e) { done(); return; }
+      setTimeout(done, 1500 + text.length * 90); // some phones never fire onend; don't let the queue jam
+    },
+    stop() { this.queue = []; try { speechSynthesis.cancel(); } catch (e) {} this.speaking = false; this.current = null; }
+  };
+  const speak = (text, force = false) => coach.say(text, force ? 'high' : 'normal');
   // Browsers only let audio start after a user gesture.
   document.addEventListener('pointerdown', () => audio(), { once: true });
 
@@ -455,7 +499,9 @@
   $('metroToggle').checked = settings.metro;
   $('metroToggle').onchange = (e) => { settings.metro = e.target.checked; saveSettings(); };
   $('voiceToggle').checked = settings.voice;
-  $('voiceToggle').onchange = (e) => { settings.voice = e.target.checked; saveSettings(); if (settings.voice) speak('Voice on', true); };
+  $('voiceToggle').onchange = (e) => { settings.voice = e.target.checked; saveSettings(); if (settings.voice) speak('Voice on. Let\'s train.', true); else coach.stop(); };
+  $('voiceSelect').onchange = (e) => { settings.voiceName = e.target.value; saveSettings(); coach.pick(settings.voiceName); audio(); speak("Hi, I'm your coach. Let's go.", true); };
+  coach.init();
   $('hapticToggle').checked = settings.haptics;
   $('hapticToggle').onchange = (e) => { settings.haptics = e.target.checked; saveSettings(); buzz(40); };
   for (const id of ['maskToggle', 'maskToggleSetup']) {
@@ -896,6 +942,8 @@
   const DRILLS = {
     foundations: {
       name: 'Foundations (Inside-Outs)', go: 'Side to side. Go!',
+      cues: ['Small touches, inside of both feet', 'Knees bent, stay on your toes', 'Eyes up, don\'t look at the ball', 'Keep it close, nice and quick'],
+      nudge: 'Push the ball across to the lit ring',
       tip: '<strong>Inside-outs.</strong> Push the ball across to the lit ring with the inside of one foot, then back with the other. Small touches, knees bent, eyes up.',
       setup(s) {
         const b = tracker, r = b.found ? b.r : 0.055, cx = b.found ? b.x : 0.5, cy = b.found ? b.y : 0.84;
@@ -918,6 +966,8 @@
 
     toe_taps: {
       name: 'Toe Taps', go: 'Toe taps. Go!',
+      cues: ['Light on your feet, quick little hops', 'Left, right, left, right', 'Just the sole on top of the ball', 'Arms out for balance'],
+      nudge: 'Tap the top of the ball with your sole',
       tip: '<strong>Toe taps.</strong> Ball stays still. Tap the top of the ball with the sole of one foot, then the other, hopping lightly. Alternate feet.',
       setup(s) { s.state = { L: 'away', R: 'away' }; s.last = null; s.lastT = 0; },
       update(s, now, feet) {
@@ -944,6 +994,8 @@
 
     l_drags: {
       name: 'L-Drags', go: 'Drag back, push across. Go!',
+      cues: ['Drag it back with the sole, then push it across', 'Same foot for both moves', 'Switch feet every rep', 'Stay low through the move'],
+      nudge: 'Roll the ball back toward you, then push it across',
       tip: '<strong>L-drag.</strong> Roll the ball back toward you with the sole, then push it across your body with the inside of the same foot. The ball draws an L. Switch feet each rep.',
       setup(s) { s.phase = 'wait'; s.ox = tracker.x; s.oy = tracker.y; s.t0 = 0; s.lastDir = 0; },
       update(s, now) {
@@ -979,6 +1031,8 @@
 
     wall_pass: {
       name: 'Wall Pass & Control', go: 'Pass and control. Go!',
+      cues: ['Firm pass, inside of the foot', 'Move to meet the ball', 'Cushion the first touch', 'Look up before you pass'],
+      nudge: 'Pass it against the wall and bring it under control',
       tip: '<strong>Wall pass.</strong> Pass firmly against a wall and bring the rebound under control with one touch. A rep counts when the ball stops at your feet again.',
       setup(s) { s.phase = 'ready'; s.kx = 0; s.ky = 0; s.t0 = 0; s.settle = 0; s.lost = 0; },
       update(s, now, feet) {
@@ -1012,6 +1066,8 @@
 
     kicking_form: {
       name: 'Kicking Form', go: 'Set the ball and strike!',
+      cues: ['Plant foot beside the ball, toes to the target', 'Lock your ankle before contact', 'Head over the ball', 'Follow through toward the target'],
+      nudge: 'Set the ball, step back, and strike it',
       tip: '<strong>Kicking form.</strong> Place the ball, step up and strike it. At impact I check your plant foot (beside the ball, a hand\'s width away) and whether your kicking ankle stays locked. Camera should face you.',
       K: { plantMin: 1.2, plantMax: 3.2, kickSpeed: 6, kickDisp: 1.2, inside: [75, 120], laces: [120, 175], drift: 18 },
       setup(s) { s.phase = 'set'; s.snap = null; s.t0 = 0; },
@@ -1081,7 +1137,7 @@
   let live = false, paused = false, pauseT = 0, drillId = 'foundations', drill = null, challenge = 'free_play';
   function pauseSession() {
     if (!live || paused) return;
-    paused = true; pauseT = performance.now(); stopMetronome();
+    paused = true; pauseT = performance.now(); stopMetronome(); coach.stop();
     setStatus('PAUSED'); $('pauseBtn').innerText = 'Resume';
     showHud('PAUSED', 'Tap Resume when ready', 'info', 2000);
   }
@@ -1090,14 +1146,36 @@
     if (!cameraOn()) { const ok = await startCamera(); if (!ok) return; keepAwake(true); }
     sessionStart += performance.now() - pauseT; paused = false;
     startMetronome(); setStatus('TRACKING LIVE'); $('pauseBtn').innerText = 'Pause';
-    speak('Go!', true);
+    speak('And go!', true);
   }
   $('pauseBtn').onclick = () => {
     if (!live) { showHud('NOT STARTED', 'Press Start Drill first', 'info'); return; }
     if (paused) resumeSession();
     else { pauseSession(); stopCamera(); keepAwake(false); }
   };
-  let repCount = 0, combo = 0, lastRepT = 0, repTimes = [], formRatings = [], sessionStart = 0, lastSpeedWarn = 0, finished = false;
+  let repCount = 0, combo = 0, bestCombo = 0, lastRepT = 0, repTimes = [], formRatings = [], sessionStart = 0, lastSpeedWarn = 0, finished = false;
+  let cs = null; // coaching state for the current session
+  const resetCoach = () => { cs = { called: new Set(), lastCue: 0, cueIdx: 0, lastNudge: 0, minute: 0, lastTry: 0, finalCount: false }; };
+  const STREAK_LINES = { 5: 'Five in a row!', 10: 'Ten streak, keep it going!', 20: 'Twenty! You\'re on fire!', 30: 'Thirty straight, unreal!', 50: 'Fifty streak! Legend!' };
+  function coachTick(now, elapsed, left) {
+    if (!cs) return;
+    const def = DRILLS[drillId];
+    if (challenge === 'free_play') {
+      const m = Math.floor(elapsed / 60);
+      if (m > cs.minute) { cs.minute = m; coach.say(m === 1 ? 'One minute' : `${m} minutes`, 'normal'); }
+    } else {
+      const s = Math.ceil(left);
+      const lines = { 15: 'Halfway', 10: 'Ten seconds', 5: 'Five', 4: 'Four', 3: 'Three', 2: 'Two', 1: 'One' };
+      if (lines[s] && !cs.called.has(s)) { cs.called.add(s); if (s <= 5) cs.finalCount = true; coach.say(lines[s], s <= 5 ? 'high' : 'normal'); }
+      if (left <= 6) return; // keep the last seconds clear for the count
+    }
+    if (now - cs.lastTry < 1000) return; cs.lastTry = now;
+    if (now - lastRepT > 8000 && now - cs.lastNudge > 15000 && elapsed > 6 && def.nudge) {
+      if (coach.say(def.nudge, 'low')) cs.lastNudge = now;
+    } else if (elapsed > 8 && now - cs.lastCue > 14000 && def.cues) {
+      if (coach.say(def.cues[cs.cueIdx % def.cues.length], 'low')) { cs.lastCue = now; cs.cueIdx++; }
+    }
+  }
 
   function makeDrill() { const def = DRILLS[drillId]; const s = { def }; def.setup(s); return s; }
   function updateHud() {
@@ -1128,7 +1206,10 @@
     lastRepT = now; repTimes.push(now); repCount++;
     if (!opts.silent) { playTargetDing(combo); shake(); comboBadge(); }
     updateHud(); repFx();
-    if (repCount % 10 === 0) speak(String(repCount));
+    bestCombo = Math.max(bestCombo, combo);
+    if (cs && cs.finalCount) { /* final countdown owns the voice */ }
+    else if (STREAK_LINES[combo]) coach.say(STREAK_LINES[combo], 'normal');
+    else if (repCount % 10 === 0) coach.say(String(repCount), 'normal');
     if (challenge === 'cadence_40' && repCount >= 40) finishChallenge(true);
   }
 
@@ -1138,26 +1219,29 @@
     $('hudCadence').innerText = (repTimes.length / 3).toFixed(1);
     if (now - lastRepT > 2500 && combo > 0) { combo = 0; updateHud(); }
     const elapsed = (now - sessionStart) / 1000;
+    let left = Infinity;
     if (challenge === 'free_play') {
       $('hudTime').innerText = `${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, '0')}`;
     } else {
-      const left = Math.max(0, Math.ceil(30 - elapsed));
-      $('hudTime').innerText = `${left}s`;
-      if (elapsed > 5 && repTimes.length / 3 < 1.33 && now - lastSpeedWarn > 4000 && drillId !== 'kicking_form') {
-        lastSpeedWarn = now; showHud('SPEED UP!', 'Quicker touches', 'warn', 1000); speak('Faster!');
+      left = Math.max(0, 30 - elapsed);
+      $('hudTime').innerText = `${Math.ceil(left)}s`;
+      if (elapsed > 5 && left > 6 && repTimes.length / 3 < 1.33 && now - lastSpeedWarn > 6000 && drillId !== 'kicking_form') {
+        lastSpeedWarn = now; showHud('SPEED UP!', 'Quicker touches', 'warn', 1000); coach.say('Faster!', 'normal');
       }
-      if (left <= 0) finishChallenge(challenge === 'sprint_30');
     }
+    coachTick(now, elapsed, left);
+    if (left <= 0) finishChallenge(challenge === 'sprint_30');
     $('ballLost').classList.toggle('show', !!tracker.target && !tracker.found && now - tracker.lastSeen > 1200);
   }
 
   function runCountdown(onDone) {
     const overlay = $('countdownOverlay');
-    overlay.style.display = 'flex'; let num = 3; overlay.innerText = num; synthTone(440, 'sine', 0.15);
+    const words = ['', 'One', 'Two', 'Three'];
+    overlay.style.display = 'flex'; let num = 3; overlay.innerText = num; synthTone(440, 'sine', 0.15); speak(words[num], true);
     clearInterval(runCountdown._t);
     runCountdown._t = setInterval(() => {
       num--;
-      if (num > 0) { overlay.innerText = num; synthTone(440, 'sine', 0.15); }
+      if (num > 0) { overlay.innerText = num; synthTone(440, 'sine', 0.15); speak(words[num], true); }
       else { clearInterval(runCountdown._t); overlay.style.display = 'none'; playWhistle(); onDone(); }
     }, 900);
   }
@@ -1169,7 +1253,7 @@
     runCountdown(() => {
       $('startDrillBtn').disabled = false; $('startDrillBtn').innerText = 'Restart Drill';
       paused = false; $('pauseBtn').innerText = 'Pause';
-      repCount = 0; combo = 0; lastRepT = 0; repTimes = []; formRatings = []; finished = false; lastSpeedWarn = 0;
+      repCount = 0; combo = 0; bestCombo = 0; lastRepT = 0; repTimes = []; formRatings = []; finished = false; lastSpeedWarn = 0; resetCoach();
       challenge = $('challengeSelect').value;
       drill = makeDrill(); updateHud(); $('bigRep').classList.add('show');
       sessionStart = performance.now(); live = true;
@@ -1178,11 +1262,14 @@
   }
   function finishChallenge(victory) {
     if (finished) return; finished = true;
-    if (victory) {
-      playWhistle(); confetti(); buzz([100, 50, 100, 50, 300]); showHud('GOAL!', `${repCount} reps`, 'good', 3000); speak(`Goal! ${repCount} reps`, true);
+    if (challenge === 'sprint_30') {
+      playWhistle(); confetti(); buzz([100, 50, 300]); showHud('TIME!', `${repCount} reps`, 'good', 3000); speak('Time!', true);
+      captureClip(`30s sprint · ${repCount} reps`);
+    } else if (victory) {
+      playWhistle(); confetti(); buzz([100, 50, 100, 50, 300]); showHud('GOAL!', `${repCount} reps`, 'good', 3000); speak('Goal!', true);
       captureClip(`Challenge win · ${repCount} reps`);
     } else {
-      playWhistle(); showHud("TIME'S UP", `${repCount} of 40`, 'info', 3000); speak(`Time! ${repCount} reps`, true);
+      playWhistle(); buzz([60, 40, 60]); showHud("TIME'S UP", `${repCount} of 40`, 'info', 3000); speak("Time's up.", true);
     }
     setTimeout(() => endSession(true), 1200);
   }
@@ -1196,14 +1283,22 @@
     if (save && (repCount > 0 || formRatings.length)) {
       const logs = store.get('apex_logs_v2', []);
       const d = new Date();
+      const pb = logs.filter(l => l.drill === drillId).reduce((m, l) => Math.max(m, l.reps), 0);
+      const avgForm = formRatings.length ? Math.round(formRatings.reduce((a, b) => a + b, 0) / formRatings.length) : null;
+      let summary = drillId === 'kicking_form'
+        ? `${repCount} strike${repCount === 1 ? '' : 's'}, average form ${avgForm} percent.`
+        : `${repCount} rep${repCount === 1 ? '' : 's'} in ${seconds} seconds. Best streak ${bestCombo}.`;
+      if (repCount > pb && pb > 0) summary += ' New personal best!';
+      else if (pb > 0 && repCount >= pb * 0.9) summary += ' Close to your record.';
+      else if (pb === 0) summary += ' First one on the board.';
+      coach.say((finished ? '' : 'Done. ') + summary, finished ? 'normal' : 'high');
       logs.unshift({
         ts: d.getTime(), day: dayKey(d), drill: drillId, drillName: DRILLS[drillId].name, reps: repCount, seconds,
         form: formRatings.length ? Math.round(formRatings.reduce((a, b) => a + b, 0) / formRatings.length) : null
       });
       store.set('apex_logs_v2', logs.slice(0, 200));
       setStatus('SESSION SAVED');
-      if (!finished) speak('Session saved', true);
-    } else { setStatus('CAMERA ON'); }
+    } else { setStatus('CAMERA ON'); if (!save) coach.stop(); }
     if (save) showScreen('vaultScreen');
   }
 
