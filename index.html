@@ -46,6 +46,13 @@
       font-size: 0.68rem; font-weight: 800; color: var(--electric-blue);
       border: 1px solid var(--electric-blue); padding: 3px 8px; border-radius: 99px; white-space: nowrap;
     }
+    .cam-btn { background: var(--card); border: 1px solid var(--border); color: #fff; font-size: 0.68rem; font-weight: 800; padding: 3px 9px; border-radius: 99px; cursor: pointer; margin-left: auto; margin-right: 8px; }
+    .cam-btn.off { border-color: var(--alert-red); color: var(--alert-red); }
+    .cam-off { position: absolute; inset: 0; background: rgba(0,0,0,0.88); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 50; font-weight: 800; font-size: 0.95rem; text-align: center; padding: 20px; }
+    .cam-off.show { display: flex; }
+    .cam-off small { color: var(--text-muted); font-weight: 600; font-size: 0.72rem; }
+    .btn-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+    .btn-row-3 .action-btn { font-size: 0.78rem; padding: 14px 4px; }
     .nav-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; background: var(--surface); padding: 3px; border-radius: 8px; }
     .nav-tab {
       background: none; border: none; color: var(--text-muted); padding: 8px;
@@ -196,6 +203,7 @@
   <header>
     <div class="top-bar">
       <div class="logo">APEX<span>TOUCH</span></div>
+      <button class="cam-btn" id="camBtn">📷 ON</button>
       <div class="status-badge" id="engineStatus">STANDBY</div>
     </div>
     <nav class="nav-tabs">
@@ -222,6 +230,7 @@
         <video id="setupVideo" autoplay playsinline muted></video>
         <canvas id="setupCanvas"></canvas>
         <div class="tap-hint" id="tapHint">👆 Tap the ball</div>
+        <div class="cam-off" id="setupCamOff"><div>Camera is off</div><button class="metro-btn" data-cam-on>Turn camera on</button></div>
         <div class="calib-pill">
           <span id="calibText">Starting camera…</span>
           <span id="calibIcon">🟡</span>
@@ -243,7 +252,10 @@
         <label class="toggle"><input type="checkbox" id="maskToggleSetup"> show color mask (debug: pink = pixels matching the ball color)</label>
       </div>
 
-      <button id="startBtn" class="action-btn btn-green" disabled>Go to Training</button>
+      <div class="btn-row">
+        <button id="repickBallBtn" class="action-btn btn-secondary">Re-pick ball</button>
+        <button id="startBtn" class="action-btn btn-green" disabled>Go to Training</button>
+      </div>
     </section>
 
     <!-- ================= TRAIN ================= -->
@@ -300,6 +312,7 @@
         <div class="combo-banner" id="comboBanner">🔥 5x STREAK!</div>
         <div class="ball-lost" id="ballLost">Can't see the ball — bring it into view</div>
         <div class="countdown-overlay" id="countdownOverlay">3</div>
+        <div class="cam-off" id="trainCamOff"><div>Camera is off</div><small id="trainCamOffNote"></small><button class="metro-btn" data-cam-on>Turn camera on</button></div>
         <div class="hud-feedback" id="hudFeedback">
           <span id="fbTitle"></span>
           <span id="fbDesc"></span>
@@ -313,8 +326,9 @@
         <div class="hud-cell"><span>Cadence</span><strong id="hudCadence">0.0</strong></div>
       </div>
 
-      <div class="btn-row">
+      <div class="btn-row-3">
         <button class="action-btn btn-green" id="startDrillBtn">Start Drill</button>
+        <button class="action-btn btn-secondary" id="pauseBtn">Pause</button>
         <button class="action-btn btn-secondary" id="endBtn">End &amp; Save</button>
       </div>
       <button class="link-btn" id="repickBtn">Ball not tracking? Re-pick the ball color</button>
@@ -493,13 +507,29 @@
     for (const v of [setupVideo, trainVideo]) { v.srcObject = stream; v.play().catch(() => {}); }
     $('camError').style.display = 'none';
     setStatus('CAMERA ON');
+    setCamUi();
     return true;
   }
   function stopCamera() {
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = null;
     setupVideo.srcObject = null; trainVideo.srcObject = null;
+    setCamUi();
   }
+  const cameraOn = () => !!(stream && stream.active);
+  function setCamUi() {
+    const on = cameraOn();
+    $('camBtn').innerText = on ? '📷 ON' : '📷 OFF'; $('camBtn').classList.toggle('off', !on);
+    $('setupCamOff').classList.toggle('show', !on); $('trainCamOff').classList.toggle('show', !on);
+    $('trainCamOffNote').innerText = live ? 'Drill paused, your reps are kept' : '';
+  }
+  async function toggleCamera() {
+    if (screen === 'vaultScreen') return;
+    if (cameraOn()) { if (live && !paused) pauseSession(); stopCamera(); keepAwake(false); setStatus(live ? 'PAUSED' : 'CAMERA OFF'); }
+    else { await startCamera(); keepAwake(true); if (live && paused) setStatus('PAUSED'); }
+  }
+  $('camBtn').onclick = toggleCamera;
+  document.querySelectorAll('[data-cam-on]').forEach(b => b.onclick = toggleCamera);
   function syncCanvas(video, canvas) {
     const w = video.videoWidth, h = video.videoHeight;
     if (!w || !h || video.readyState < 2) return false;
@@ -739,10 +769,17 @@
     } else if (!tracker.found) {
       text.innerText = `Looking for your ${tracker.target.name} ball…`; icon.innerText = '🟡'; btn.disabled = true;
     } else {
-      text.innerText = 'Ball locked. Ready!'; icon.innerText = '🟢'; btn.disabled = false;
+      text.innerText = 'Ball locked ✓  (tap it again any time to re-lock)'; icon.innerText = '🟢'; btn.disabled = false;
       drawBall(sCtx, W, H, now, true);
     }
   }
+  $('repickBallBtn').onclick = () => {
+    tracker.setTarget(null); tracker.base = null; store.del('apex_ball');
+    $('ballSwatch').innerText = 'none';
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    $('tapHint').style.display = 'flex'; $('startBtn').disabled = true;
+    synthTone(330, 'sine', 0.1);
+  };
 
   /* =========================================================
      POSE (MediaPipe) — created once
@@ -1041,7 +1078,25 @@
   /* =========================================================
      SESSION STATE
      ========================================================= */
-  let live = false, drillId = 'foundations', drill = null, challenge = 'free_play';
+  let live = false, paused = false, pauseT = 0, drillId = 'foundations', drill = null, challenge = 'free_play';
+  function pauseSession() {
+    if (!live || paused) return;
+    paused = true; pauseT = performance.now(); stopMetronome();
+    setStatus('PAUSED'); $('pauseBtn').innerText = 'Resume';
+    showHud('PAUSED', 'Tap Resume when ready', 'info', 2000);
+  }
+  async function resumeSession() {
+    if (!live || !paused) return;
+    if (!cameraOn()) { const ok = await startCamera(); if (!ok) return; keepAwake(true); }
+    sessionStart += performance.now() - pauseT; paused = false;
+    startMetronome(); setStatus('TRACKING LIVE'); $('pauseBtn').innerText = 'Pause';
+    speak('Go!', true);
+  }
+  $('pauseBtn').onclick = () => {
+    if (!live) { showHud('NOT STARTED', 'Press Start Drill first', 'info'); return; }
+    if (paused) resumeSession();
+    else { pauseSession(); stopCamera(); keepAwake(false); }
+  };
   let repCount = 0, combo = 0, lastRepT = 0, repTimes = [], formRatings = [], sessionStart = 0, lastSpeedWarn = 0, finished = false;
 
   function makeDrill() { const def = DRILLS[drillId]; const s = { def }; def.setup(s); return s; }
@@ -1106,13 +1161,14 @@
       else { clearInterval(runCountdown._t); overlay.style.display = 'none'; playWhistle(); onDone(); }
     }, 900);
   }
-  function startDrill() {
-    if (!stream) { showHud('NO CAMERA', 'Go back to Setup', 'warn'); return; }
+  async function startDrill() {
+    if (!cameraOn()) { const ok = await startCamera(); if (!ok) { showHud('NO CAMERA', 'Allow camera access', 'warn'); return; } keepAwake(true); }
     if (live) endSession(false);
     audio();
     $('startDrillBtn').disabled = true;
     runCountdown(() => {
       $('startDrillBtn').disabled = false; $('startDrillBtn').innerText = 'Restart Drill';
+      paused = false; $('pauseBtn').innerText = 'Pause';
       repCount = 0; combo = 0; lastRepT = 0; repTimes = []; formRatings = []; finished = false; lastSpeedWarn = 0;
       challenge = $('challengeSelect').value;
       drill = makeDrill(); updateHud(); $('bigRep').classList.add('show');
@@ -1132,6 +1188,8 @@
   }
   function endSession(save) {
     if (!live) return;
+    if (paused) { sessionStart += performance.now() - pauseT; paused = false; }
+    $('pauseBtn').innerText = 'Pause';
     live = false; stopMetronome(); $('bigRep').classList.remove('show');
     const seconds = Math.round((performance.now() - sessionStart) / 1000);
     $('startDrillBtn').innerText = 'Start Drill';
@@ -1161,7 +1219,7 @@
       if (!poseBusy) { poseBusy = true; poseBusySince = now; pose.send({ image: trainVideo }).catch(() => { poseBusy = false; }); }
     }
     const feet = getFeet();
-    if (live) updateSession(now, feet);
+    if (live && !paused) updateSession(now, feet);
     const W = trainCanvas.width, H = trainCanvas.height;
     tCtx.clearRect(0, 0, W, H);
     if (settings.mask) tracker.drawMask(tCtx, W, H);
@@ -1325,7 +1383,7 @@
   }
   document.querySelectorAll('.nav-tab').forEach(b => b.onclick = () => showScreen(b.dataset.screen));
   $('startBtn').onclick = () => showScreen('trainScreen');
-  $('repickBtn').onclick = () => showScreen('setupScreen');
+  $('repickBtn').onclick = () => { showScreen('setupScreen'); $('repickBallBtn').click(); };
   $('startDrillBtn').onclick = startDrill;
   $('endBtn').onclick = () => { if (live) endSession(true); else showScreen('vaultScreen'); };
 

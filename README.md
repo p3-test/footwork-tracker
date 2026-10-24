@@ -35,6 +35,13 @@ Live: https://p3-test.github.io/footwork-tracker/
 
 These thresholds are heuristics tuned on a low, front-facing camera. They are in `DRILLS.kicking_form.K` in `index.html` if you want to adjust them.
 
+## Controls
+
+* **📷 button (header)** turns the camera off and on from any screen. Turning it off during a drill pauses the drill.
+* **Pause / Resume** on the Train screen pauses the drill, stops the clock and turns the camera off. Reps are kept. Resume turns the camera back on and continues.
+* **Re-pick ball** on the Setup screen clears the locked color so you can tap the ball again. You can also just tap the ball again at any time while on Setup.
+* **End & Save** stores the session in the Vault.
+
 ## Field-test aids
 
 * **Giant counter** on the video itself, with a green flash on every rep, readable from across the room.
