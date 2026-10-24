@@ -68,7 +68,7 @@ Timed modes nag with "Speed up!" if cadence drops below 1.33 reps per second.
 
 ## Setup that works
 
-1. Phone on the floor or a low stand, **6–12 inches up**, front camera facing the player, 6–8 feet back. Portrait.
+1. Front camera facing the player, portrait. A low stand (6–12 inches) or a tripod tilted down both work. Stand back until the ball sits around the **middle of the picture**, not the bottom edge, so the rings land where you can see them. Foundations rings are placed around the ball when it's first seen after the countdown and re-centre if the ball comes to rest somewhere else; a big LEFT/RIGHT arrow at the top of the video shows the next target.
 2. Ball on the floor in view. **Tap it on screen** to lock its color. Re-tap any time the lighting changes.
 3. Use a **bright ball** (orange, yellow, pink) that doesn't match socks, shoes or the floor. White balls on light floors and dark balls in dim rooms track poorly.
 4. Feet and ball should both be in frame. Avoid direct sun glare on the floor.

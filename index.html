@@ -138,6 +138,10 @@
     .big-rep strong { display: block; font-size: 5.5rem; line-height: 1; font-weight: 900; color: #00FF66; text-shadow: 0 0 18px rgba(0,255,102,0.7), 0 2px 4px #000; transition: transform 0.12s ease; }
     .big-rep strong.pop { transform: scale(1.25); }
     .big-rep span { display: block; font-size: 1.1rem; font-weight: 900; color: #FF5500; text-shadow: 0 0 10px rgba(255,85,0,0.6), 0 1px 3px #000; min-height: 1.2em; }
+    .dir-hint { position: absolute; top: 10px; left: 12px; z-index: 34; pointer-events: none; display: none; font-size: 2.2rem; font-weight: 900; color: #00FF66; text-shadow: 0 0 16px rgba(0,255,102,0.7), 0 2px 4px #000; letter-spacing: 1px; }
+    .dir-hint.show { display: block; }
+    .dir-hint.right { left: auto; right: 12px; top: 100px; }
+    .dir-hint.left { top: 100px; }
     .rep-flash { position: absolute; inset: 0; background: #00FF66; opacity: 0; pointer-events: none; z-index: 33; }
     .rep-flash.go { animation: flash 0.25s ease-out; }
     @keyframes flash { 0% { opacity: 0.45; } 100% { opacity: 0; } }
@@ -219,7 +223,7 @@
     <!-- ================= SETUP ================= -->
     <section id="setupScreen" class="screen active">
       <div class="setup-carousel">
-        <div class="setup-card"><strong>1. Phone placement</strong>Prop the phone on the floor or a low stand, 6–12" high, front camera facing you, 6–8 feet back.</div>
+        <div class="setup-card"><strong>1. Phone placement</strong>Front camera facing you. Low stand (6–12") or a tripod tilted down. Stand back until the ball sits around the <em>middle</em> of the picture, not the bottom edge.</div>
         <div class="setup-card"><strong>2. Lock your ball</strong>Put the ball on the floor in view and tap it on screen. A bright ball (orange, yellow, pink) that doesn't match your socks or the floor works best.</div>
         <div class="setup-card"><strong>3. Check the frame</strong>Your feet and the ball should both be visible. Good light, no sun glare on the floor.</div>
       </div>
@@ -311,6 +315,7 @@
         <video id="trainVideo" autoplay playsinline muted></video>
         <canvas id="trainCanvas"></canvas>
         <div class="rep-flash" id="repFlash"></div>
+        <div class="dir-hint" id="dirHint"></div>
         <div class="big-rep" id="bigRep"><strong id="bigRepNum">0</strong><span id="bigRepStreak"></span></div>
         <div class="debug-text" id="debugText"></div>
         <div class="combo-banner" id="comboBanner">🔥 5x STREAK!</div>
@@ -423,7 +428,7 @@
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(); osc.stop(ctx.currentTime + duration);
   }
-  const playTargetDing = (combo = 0) => synthTone(587.33 + Math.min(combo * 30, 400), 'sine', 0.12, 0.25);
+  const playTargetDing = (combo = 0, pitch = 1) => synthTone((587.33 + Math.min(combo * 30, 400)) * pitch, 'sine', 0.12, 0.25);
   const playMetronomeTick = (high) => synthTone(high ? 1200 : 800, 'triangle', 0.03, 0.08);
   const playBuzz = () => { synthTone(180, 'sawtooth', 0.25, 0.3); buzz([60, 40, 60]); };
   function playWhistle() { synthTone(1800, 'triangle', 0.2, 0.25); setTimeout(() => synthTone(2400, 'triangle', 0.28, 0.3), 70); }
@@ -945,23 +950,36 @@
       cues: ['Small touches, inside of both feet', 'Knees bent, stay on your toes', 'Eyes up, don\'t look at the ball', 'Keep it close, nice and quick'],
       nudge: 'Push the ball across to the lit ring',
       tip: '<strong>Inside-outs.</strong> Push the ball across to the lit ring with the inside of one foot, then back with the other. Small touches, knees bent, eyes up.',
-      setup(s) {
-        const b = tracker, r = b.found ? b.r : 0.055, cx = b.found ? b.x : 0.5, cy = b.found ? b.y : 0.84;
-        const rr = 1.5 * r, off = 2.4 * r;
+      // Rings are placed around wherever the ball is when it is first seen after the countdown,
+      // and re-centred if the ball comes to rest somewhere else (kids drift).
+      place(s, activeIdx = 0) {
+        const r = tracker.r, rr = 1.5 * r, off = 2.4 * r;
         // Small image x shows on the player's right after mirroring, hence the labels.
-        s.rings = [{ x: clamp(cx - off, rr, 1 - rr), y: cy, rr, label: 'R', active: true },
-                   { x: clamp(cx + off, rr, 1 - rr), y: cy, rr, label: 'L', active: false }];
-        s.lastT = 0;
+        s.rings = [{ x: clamp(tracker.x - off, rr, 1 - rr), y: tracker.y, rr, label: 'R', active: activeIdx === 0 },
+                   { x: clamp(tracker.x + off, rr, 1 - rr), y: tracker.y, rr, label: 'L', active: activeIdx === 1 }];
+        s.restSince = 0;
+        setDirectionHint(s.rings[activeIdx].label);
       },
+      setup(s) { s.rings = null; s.lastT = 0; s.restSince = 0; if (tracker.found) this.place(s); else setDirectionHint(null); },
       update(s, now) {
-        if (!tracker.found || now - s.lastT < 150) return;
+        if (!tracker.found) return;
+        if (!s.rings) { this.place(s); return; }
         const a = s.rings.find(t => t.active);
-        if (adist(tracker.x, tracker.y, a.x, a.y) < a.rr) {
-          a.active = false; s.rings[(s.rings.indexOf(a) + 1) % 2].active = true; s.lastT = now;
-          registerRep(now);
+        if (now - s.lastT > 150 && adist(tracker.x, tracker.y, a.x, a.y) < a.rr) {
+          a.active = false; const nextIdx = (s.rings.indexOf(a) + 1) % 2; s.rings[nextIdx].active = true; s.lastT = now;
+          setDirectionHint(s.rings[nextIdx].label);
+          registerRep(now, { pitch: nextIdx === 0 ? 0.84 : 1.19 }); // lower tone = go right, higher = go left
+          return;
         }
+        // Ball resting away from both rings for 2s: re-centre the rings around it.
+        const far = s.rings.every(t => adist(tracker.x, tracker.y, t.x, t.y) > 3.5 * tracker.r);
+        if (far && tracker.speedR(now) < 0.6) { if (!s.restSince) s.restSince = now; if (now - s.restSince > 2000) { this.place(s, s.rings.indexOf(a)); hint('RINGS MOVED', 'Rings re-centred on the ball', 'info'); } }
+        else s.restSince = 0;
       },
-      draw(s, ctx, W, H, now) { s.rings.forEach(t => drawRing(ctx, t, W, H, now)); }
+      draw(s, ctx, W, H, now) {
+        if (!s.rings) { drawLabel(ctx, 'SHOW ME THE BALL', W / 2, H * 0.5, W * 0.05, '#FFD600'); return; }
+        s.rings.forEach(t => drawRing(ctx, t, W, H, now));
+      }
     },
 
     toe_taps: {
@@ -1182,6 +1200,14 @@
     $('hudReps').innerText = repCount; $('hudCombo').innerText = `${combo}x`;
     $('bigRepNum').innerText = repCount; $('bigRepStreak').innerText = combo >= 2 ? `${combo}x streak` : '';
   }
+  // Big arrow at the top of the video: which way the ball goes next. Readable from across the room.
+  function setDirectionHint(side) {
+    const el = $('dirHint');
+    if (!side) { el.classList.remove('show'); return; }
+    el.innerText = side === 'L' ? '◀ LEFT' : 'RIGHT ▶';
+    el.classList.toggle('left', side === 'L'); el.classList.toggle('right', side === 'R');
+    el.classList.add('show');
+  }
   function repFx() {
     const n = $('bigRepNum'); n.classList.remove('pop'); void n.offsetWidth; n.classList.add('pop');
     clearTimeout(repFx._t); repFx._t = setTimeout(() => n.classList.remove('pop'), 130);
@@ -1204,7 +1230,7 @@
     if (!live || finished) return;
     combo = (lastRepT && now - lastRepT < 2500) ? combo + 1 : 1;
     lastRepT = now; repTimes.push(now); repCount++;
-    if (!opts.silent) { playTargetDing(combo); shake(); comboBadge(); }
+    if (!opts.silent) { playTargetDing(combo, opts.pitch || 1); shake(); comboBadge(); }
     updateHud(); repFx();
     bestCombo = Math.max(bestCombo, combo);
     if (cs && cs.finalCount) { /* final countdown owns the voice */ }
@@ -1277,7 +1303,7 @@
     if (!live) return;
     if (paused) { sessionStart += performance.now() - pauseT; paused = false; }
     $('pauseBtn').innerText = 'Pause';
-    live = false; stopMetronome(); $('bigRep').classList.remove('show');
+    live = false; stopMetronome(); $('bigRep').classList.remove('show'); setDirectionHint(null);
     const seconds = Math.round((performance.now() - sessionStart) / 1000);
     $('startDrillBtn').innerText = 'Start Drill';
     if (save && (repCount > 0 || formRatings.length)) {
@@ -1485,6 +1511,7 @@
   function setDrillUi() {
     $('drillTip').innerHTML = DRILLS[drillId].tip;
     $('strikeItem').style.display = drillId === 'kicking_form' ? 'block' : 'none';
+    setDirectionHint(null);
     drill = makeDrill();
   }
   $('drillSelect').onchange = (e) => { if (live) endSession(repCount > 0); drillId = e.target.value; setDrillUi(); repCount = 0; combo = 0; updateHud(); };
