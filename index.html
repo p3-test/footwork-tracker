@@ -1007,36 +1007,49 @@
       name: 'Foundations (Inside-Outs)', go: 'Side to side. Go!',
       cues: ['Small touches, inside of both feet', 'Knees bent, stay on your toes', 'Eyes up, don\'t look at the ball', 'Keep it close, nice and quick'],
       nudge: 'Push the ball across to the lit ring',
-      tip: '<strong>Inside-outs.</strong> Push the ball across to the lit ring with the inside of one foot, then back with the other. Small touches, knees bent, eyes up.',
+      tip: '<strong>Inside-outs.</strong> Push the ball toward the lit ring with the inside of one foot, then back with the other. Small touches, knees bent, eyes up. Tap the video to re-centre the rings.',
       // Rings are placed around wherever the ball is when it is first seen after the countdown,
       // and re-centred if the ball comes to rest somewhere else (kids drift).
-      // Two rings OFF ball-radii left and right of where the ball rests. The rings slide forward and
-      // back with the ball's depth, so a touch counts purely on sideways travel: the ball centre
-      // reaching OFF - RR radii to the lit side. Distances use the ball's current radius, so the
-      // rings scale with how far the player stands from the camera.
-      OFF: 2.6, RR: 1.0, get GATE() { return this.OFF - this.RR; },
+      // Two rings OFF ball-radii left and right of where the ball sits when the drill starts. The
+      // rings slide forward and back with the ball's depth, so only sideways travel matters.
+      // A touch counts either way:
+      //   A) ball-only: the ball centre reaches OFF - RR radii to the lit side, or
+      //   B) foot-assisted: a foot arrives at the ball and the ball then moves >= PUSH radii toward
+      //      the lit side within 450 ms. This catches soft, comfortable touches at any distance.
+      // Distances use the ball's current radius, so everything scales with camera distance.
+      OFF: 2.2, RR: 1.0, PUSH: 0.6, get GATE() { return this.OFF - this.RR; },
       place(s, side = 0) {
-        s.cx = tracker.x; s.cy = tracker.y; s.side = side; s.restSince = 0;
+        s.cx = tracker.x; s.cy = tracker.y; s.side = side; s.restSince = 0; s.contact = null;
         const margin = this.GATE * tracker.r + 0.03;
         if (s.cx < margin || s.cx > 1 - margin) hint('MOVE TO THE MIDDLE', 'Ball is close to the edge', 'info');
         setDirectionHint(side === 0 ? 'R' : 'L'); // small image x = player's right after mirroring
       },
-      setup(s) { s.cx = null; s.lastT = 0; s.restSince = 0; if (tracker.found) this.place(s); else setDirectionHint(null); },
-      update(s, now) {
+      setup(s) { s.cx = null; s.lastT = 0; s.restSince = 0; s.feet = { L: 'away', R: 'away' }; s.contact = null; if (tracker.found) this.place(s); else setDirectionHint(null); },
+      onTap(s) { if (tracker.found) { this.place(s, s.side); showHud('RE-CENTRED', 'Rings set around the ball', 'info'); } },
+      update(s, now, feet) {
         if (!tracker.found) return;
         if (s.cx === null) { this.place(s); return; }
-        const dx = (tracker.x - s.cx) / tracker.r;             // lateral offset in ball radii
-        const hit = s.side === 0 ? dx <= -this.GATE : dx >= this.GATE;
+        const r = tracker.r, dx = (tracker.x - s.cx) / r;       // lateral offset in ball radii
+        const dir = s.side === 0 ? -1 : 1;                       // image-x direction the ball must travel
+        // Foot arrival at the ball (either foot, any side of it)
+        if (feet) for (const side of ['L', 'R']) {
+          const f = feet[side].foot; if (!f) continue;
+          const d = adist(f.x, f.y, tracker.x, tracker.y) / r;
+          if (s.feet[side] === 'away' && d < 1.3) { s.feet[side] = 'on'; s.contact = { t: now, x: tracker.x }; }
+          else if (s.feet[side] === 'on' && d > 1.9) s.feet[side] = 'away';
+        }
+        let hit = dir < 0 ? dx <= -this.GATE : dx >= this.GATE;
+        if (!hit && s.contact && now - s.contact.t < 450 && (tracker.x - s.contact.x) / r * dir >= this.PUSH) hit = true;
         if (hit && now - s.lastT > 150) {
-          s.side = 1 - s.side; s.lastT = now; s.restSince = 0;
+          s.side = 1 - s.side; s.lastT = now; s.restSince = 0; s.contact = null;
           setDirectionHint(s.side === 0 ? 'R' : 'L');
           registerRep(now, { pitch: s.side === 0 ? 0.84 : 1.19 }); // lower tone = go right, higher = go left
           return;
         }
-        // Ball at rest for 3s (the player stopped or walked somewhere): make that the new centre.
-        if (tracker.speedR(now) < 0.6) {
+        // Only if the ball sits far from the centre for 4s (the player walked off) do the rings follow.
+        if (Math.abs(dx) > 4 && tracker.speedR(now) < 0.6) {
           if (!s.restSince) s.restSince = now;
-          if (now - s.restSince > 3000) { const moved = Math.abs(dx) > 0.5; this.place(s, s.side); if (moved) hint('RE-CENTRED', 'Gates moved to the ball', 'info'); }
+          if (now - s.restSince > 4000) { this.place(s, s.side); hint('RE-CENTRED', 'Rings moved to the ball', 'info'); }
         } else s.restSince = 0;
       },
       draw(s, ctx, W, H, now) {
@@ -1741,6 +1754,8 @@
   document.querySelectorAll('.nav-tab').forEach(b => b.onclick = () => showScreen(b.dataset.screen));
   $('startBtn').onclick = () => showScreen('trainScreen');
   $('repickBtn').onclick = () => { showScreen('setupScreen'); $('repickBallBtn').click(); };
+  // Tap the video during a drill to re-centre its targets on the ball.
+  $('viewport').addEventListener('pointerdown', (ev) => { if (ev.target.tagName === 'BUTTON') return; if (live && !paused && drill && drill.def.onTap) drill.def.onTap(drill); });
   $('startDrillBtn').onclick = startDrill;
   $('endBtn').onclick = () => { if (wk) finishWorkout(true); else if (live) endSession(true); else showScreen('vaultScreen'); };
 
