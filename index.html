@@ -1004,31 +1004,39 @@
 
   const DRILLS = {
     foundations: {
-      name: 'Foundations (Inside-Outs)', go: 'Side to side. Go!',
+      name: 'Foundations (Inside-Outs)', go: 'Push it across. Go!',
       cues: ['Small touches, inside of both feet', 'Knees bent, stay on your toes', 'Eyes up, don\'t look at the ball', 'Keep it close, nice and quick'],
       nudge: 'Push the ball across to the lit ring',
-      tip: '<strong>Inside-outs.</strong> Push the ball toward the lit ring with the inside of one foot, then back with the other. Small touches, knees bent, eyes up. Tap the video to re-centre the rings.',
+      tip: '<strong>Inside-outs.</strong> Start with the ball at one foot. Push it across to the lit ring with the inside of that foot, then back with the other. Small touches, knees bent, eyes up. Tap the video to reset the rings.',
       // Rings are placed around wherever the ball is when it is first seen after the countdown,
       // and re-centred if the ball comes to rest somewhere else (kids drift).
-      // Two rings OFF ball-radii left and right of where the ball sits when the drill starts. The
-      // rings slide forward and back with the ball's depth, so only sideways travel matters.
-      // A touch counts either way:
-      //   A) ball-only: the ball centre reaches OFF - RR radii to the lit side, or
+      // The ball starts at one foot. That spot becomes the HOME ring; the other ring sits 2*OFF
+      // ball-radii across (toward the other foot) and lights up first. Which way is "across" comes
+      // from the pose: ball on the player's right of the feet midpoint means go left, and vice
+      // versa (right-foot start assumed if the feet aren't visible). The rings slide forward and
+      // back with the ball's depth, so only sideways travel matters. A touch counts either way:
+      //   A) ball-only: the ball centre reaches the lit ring (OFF - RR radii past the centre), or
       //   B) foot-assisted: a foot arrives at the ball and the ball then moves >= PUSH radii toward
       //      the lit side within 450 ms. This catches soft, comfortable touches at any distance.
       // Distances use the ball's current radius, so everything scales with camera distance.
-      OFF: 2.2, RR: 1.0, PUSH: 0.6, get GATE() { return this.OFF - this.RR; },
-      place(s, side = 0) {
-        s.cx = tracker.x; s.cy = tracker.y; s.side = side; s.restSince = 0; s.contact = null;
-        const margin = this.GATE * tracker.r + 0.03;
-        if (s.cx < margin || s.cx > 1 - margin) hint('MOVE TO THE MIDDLE', 'Ball is close to the edge', 'info');
-        setDirectionHint(side === 0 ? 'R' : 'L'); // small image x = player's right after mirroring
+      OFF: 1.8, RR: 0.8, PUSH: 0.6, get GATE() { return this.OFF - this.RR; },
+      place(s, feet) {
+        let dir = 1; // +x in image = player's left (the image is mirrored on screen)
+        const pts = feet ? ['L', 'R'].map(k => feet[k].ankle || feet[k].foot).filter(Boolean) : [];
+        if (pts.length === 2) dir = tracker.x < (pts[0].x + pts[1].x) / 2 ? 1 : -1;
+        else hint('BALL AT YOUR RIGHT FOOT', 'Then push it across to the lit ring', 'info', 5000);
+        s.cx = tracker.x + dir * this.OFF * tracker.r; s.cy = tracker.y;
+        s.side = dir > 0 ? 1 : 0; s.restSince = 0; s.contact = null;
+        const far = s.cx + dir * this.OFF * tracker.r, m = this.RR * tracker.r + 0.02;
+        if (far < m || far > 1 - m) hint('MOVE TO THE MIDDLE', 'The other ring is off screen', 'info');
+        setDirectionHint(s.side === 0 ? 'R' : 'L'); // small image x = player's right after mirroring
       },
-      setup(s) { s.cx = null; s.lastT = 0; s.restSince = 0; s.feet = { L: 'away', R: 'away' }; s.contact = null; if (tracker.found) this.place(s); else setDirectionHint(null); },
-      onTap(s) { if (tracker.found) { this.place(s, s.side); showHud('RE-CENTRED', 'Rings set around the ball', 'info'); } },
+      setup(s) { s.cx = null; s.lastT = 0; s.restSince = 0; s.feet = { L: 'away', R: 'away' }; s.contact = null; s.lastFeet = null; if (tracker.found) this.place(s, getFeet()); else setDirectionHint(null); },
+      onTap(s) { if (tracker.found) { this.place(s, s.lastFeet); showHud('RESET', 'Ball is home, go to the lit ring', 'info'); } },
       update(s, now, feet) {
         if (!tracker.found) return;
-        if (s.cx === null) { this.place(s); return; }
+        if (feet) s.lastFeet = feet;
+        if (s.cx === null) { this.place(s, feet); return; }
         const r = tracker.r, dx = (tracker.x - s.cx) / r;       // lateral offset in ball radii
         const dir = s.side === 0 ? -1 : 1;                       // image-x direction the ball must travel
         // Foot arrival at the ball (either foot, any side of it)
@@ -1049,7 +1057,7 @@
         // Only if the ball sits far from the centre for 4s (the player walked off) do the rings follow.
         if (Math.abs(dx) > 4 && tracker.speedR(now) < 0.6) {
           if (!s.restSince) s.restSince = now;
-          if (now - s.restSince > 4000) { this.place(s, s.side); hint('RE-CENTRED', 'Rings moved to the ball', 'info'); }
+          if (now - s.restSince > 4000) { this.place(s, feet); hint('RESET', 'Rings moved to the ball', 'info'); }
         } else s.restSince = 0;
       },
       draw(s, ctx, W, H, now) {

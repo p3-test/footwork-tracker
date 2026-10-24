@@ -21,7 +21,7 @@ Live: https://p3-test.github.io/footwork-tracker/
 
 | Drill | Rep counts when… | Feedback |
 | :--- | :--- | :--- |
-| **Foundations (Inside-Outs)** | Rings sit 2.2 ball radii either side of where the ball is at Start and slide with the ball's depth. A touch counts when a foot arrives at the ball and the ball then moves 0.6 radii toward the lit side, or, without feet in view, when the ball centre reaches the lit ring. Tap the video to re-centre. | Big LEFT/RIGHT arrow, lower ding for right, higher for left |
+| **Foundations (Inside-Outs)** | Start with the ball at one foot. That spot is the home ring; the far ring (3.6 ball radii across, toward the other foot) lights first. Direction comes from the pose (ball right of the feet midpoint means go left). Rings slide with the ball's depth. A touch counts when a foot arrives at the ball and the ball moves 0.6 radii toward the lit side, or when the ball centre reaches the lit ring. Tap the video to reset. | Big LEFT/RIGHT arrow, lower ding for right, higher for left |
 | **Toe Taps** | A toe lands on top of the ball (within 1.3 radii and above the ball's center) after being away from it. | "Alternate feet" if the same foot taps twice |
 | **L-Drags** | The ball rolls back (away from the camera) at least one radius, then across at least two radii within 1.5 s. | "Faster" if the push doesn't follow the drag |
 | **Wall Pass & Control** | The ball is struck (fast, more than 1.2 radii in 150 ms), travels at least 3 radii away or leaves the frame, then comes back and stops within 2.5 radii of a foot. | "Clean control" inside 1.6 radii, otherwise "Keep it closer" |
@@ -81,7 +81,7 @@ Timed modes nag with "Speed up!" if cadence drops below 1.33 reps per second.
 
 ## Setup that works
 
-1. Front camera facing the player, portrait. A low stand (6–12 inches) or a tripod tilted down both work. Stand back until the ball sits around the **middle of the picture**, not the bottom edge. Foundations rings are placed either side of the ball at Start, follow the ball's depth, and re-centre when you tap the video (or if the ball sits far away for 4 seconds); a big LEFT/RIGHT arrow at the top of the video shows the next target.
+1. Front camera facing the player, portrait. A low stand (6–12 inches) or a tripod tilted down both work. Stand back until the ball sits around the **middle of the picture**, not the bottom edge. For Foundations, start with the ball at one foot: that becomes the home ring and the far ring lights first. Rings follow the ball's depth and reset when you tap the video (or if the ball sits far away for 4 seconds); a big LEFT/RIGHT arrow at the top of the video shows the next target.
 2. Ball on the floor in view. **Tap it on screen** to lock its color. Re-tap any time the lighting changes.
 3. Use a **bright ball** (orange, yellow, pink) that doesn't match socks, shoes or the floor. White balls on light floors and dark balls in dim rooms track poorly.
 4. Feet and ball should both be in frame. Avoid direct sun glare on the floor.
