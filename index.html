@@ -248,7 +248,7 @@
     <!-- ================= SETUP ================= -->
     <section id="setupScreen" class="screen active">
       <div class="setup-carousel">
-        <div class="setup-card"><strong>1. Phone placement</strong>Front camera facing you. Low stand (6–12") or a tripod tilted down. Stand back until the ball sits around the <em>middle</em> of the picture, not the bottom edge.</div>
+        <div class="setup-card"><strong>1. Phone placement</strong>Front camera facing you. Low stand (6–12") or a tripod tilted down. Stand back until the ball sits around the <em>middle</em> of the picture. For Kicking Form turn the phone <em>side-on</em> so you kick across the picture.</div>
         <div class="setup-card"><strong>2. Lock your ball</strong>Put the ball on the floor in view and tap it on screen. A bright ball (orange, yellow, pink) that doesn't match your socks or the floor works best.</div>
         <div class="setup-card"><strong>3. Check the frame</strong>Your feet and the ball should both be visible. Good light, no sun glare on the floor.</div>
       </div>
@@ -963,6 +963,37 @@
       ctx.beginPath(); ctx.arc(tx, ty, tr * 0.85, 0, 2 * Math.PI); ctx.stroke(); ctx.restore();
     }
   }
+  // Pre-start guide: where to put the ball and stand. Disappears once the drill is live.
+  function drawGuide(ctx, W, H, sideOn) {
+    const gx = 0.5 * W, gy = 0.78 * H, gr = Math.max(14, W * 0.055);
+    ctx.save(); ctx.setLineDash([6, 6]); ctx.strokeStyle = 'rgba(255,214,0,0.9)'; ctx.lineWidth = 3; ctx.shadowColor = '#FFD600'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(gx, gy, gr * 1.3, 0, 2 * Math.PI); ctx.stroke();
+    if (sideOn) {
+      ctx.beginPath(); ctx.ellipse(gx + gr * 2.2, gy - gr * 0.2, gr * 1.5, gr * 0.7, 0, 0, 2 * Math.PI); ctx.stroke(); // plant foot beside the ball
+    } else {
+      for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(gx + s * gr * 3.2, gy - gr * 0.6, gr * 0.75, gr * 1.6, 0, 0, 2 * Math.PI); ctx.stroke(); }
+    }
+    ctx.restore();
+    drawLabel(ctx, 'BALL HERE', gx, gy - gr * 2.6, W * 0.035, '#FFD600');
+    drawLabel(ctx, sideOn ? 'CAMERA SIDE-ON · KICK ACROSS THE PICTURE' : 'STAND BEHIND IT · FEET IN VIEW', gx, gy + gr * 2.2, W * 0.028, 'rgba(255,255,255,0.85)');
+  }
+  // After Start the person has to walk back into position, so wait for the ball at rest with the
+  // feet in view (or 15 s) before the countdown.
+  let readyState = null;
+  function getReady(onReady) {
+    readyState = { t0: performance.now(), stillSince: 0, onReady };
+    setStatus('GET READY'); showHud('PUT THE BALL IN THE CIRCLE', 'Stand behind it, feet in view', 'info', 4000);
+    coach.say('Put the ball in the circle and stand behind it.', 'high');
+  }
+  function checkReady(now) {
+    if (!readyState) return;
+    const feetOk = !pose || !poseReady || !!getFeet();
+    const ballOk = tracker.found && tracker.speedR(now) < 1.0;
+    if (ballOk && feetOk) { if (!readyState.stillSince) readyState.stillSince = now; } else readyState.stillSince = 0;
+    if ((readyState.stillSince && now - readyState.stillSince > 1200) || now - readyState.t0 > 15000) {
+      const cb = readyState.onReady; readyState = null; cb();
+    }
+  }
   function drawArrow(ctx, x1, y1, x2, y2, color, width) {
     ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width; ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
@@ -994,32 +1025,30 @@
       name: 'Foundations (Inside-Outs)', go: 'Push it across. Go!',
       cues: ['Small touches, inside of both feet', 'Knees bent, stay on your toes', 'Eyes up, don\'t look at the ball', 'Keep it close, nice and quick'],
       nudge: 'Push the ball across to the lit ring',
-      tip: '<strong>Inside-outs.</strong> Start with the ball at one foot. Push it across to the lit ring with the inside of that foot, then back with the other. Small touches, knees bent, eyes up. Tap the video to reset the rings.',
+      tip: '<strong>Inside-outs.</strong> Ball in the circle, feet either side. Push it to the lit ring with the inside of one foot, then back with the other. Small touches, knees bent, eyes up. Tap the video to re-centre the rings.',
       // Rings are placed around wherever the ball is when it is first seen after the countdown,
       // and re-centred if the ball comes to rest somewhere else (kids drift).
-      // The ball starts at one foot. That spot becomes the HOME ring; the other ring sits 2*OFF
-      // ball-radii across (toward the other foot) and lights up first. Which way is "across" comes
-      // from the pose: ball on the player's right of the feet midpoint means go left, and vice
-      // versa (right-foot start assumed if the feet aren't visible). The rings slide forward and
-      // back with the ball's depth, so only sideways travel matters. A touch counts either way:
-      //   A) ball-only: the ball centre reaches the lit ring (OFF - RR radii past the centre), or
+      // The ball starts between the feet (the guide circle). Two rings sit OFF ball-radii either
+      // side of it and slide forward and back with the ball's depth, so only sideways travel
+      // matters. The first lit ring is toward the farther foot (player's left if unclear).
+      // A touch counts either way:
+      //   A) ball-only: the ball centre reaches the lit ring (OFF - RR radii from the centre), or
       //   B) foot-assisted: a foot arrives at the ball and the ball then moves >= PUSH radii toward
       //      the lit side within 450 ms. This catches soft, comfortable touches at any distance.
       // Distances use the ball's current radius, so everything scales with camera distance.
-      OFF: 1.8, RR: 0.8, PUSH: 0.6, get GATE() { return this.OFF - this.RR; },
+      OFF: 2.2, RR: 1.0, PUSH: 0.6, get GATE() { return this.OFF - this.RR; },
       place(s, feet) {
         let dir = 1; // +x in image = player's left (the image is mirrored on screen)
         const pts = feet ? ['L', 'R'].map(k => feet[k].ankle || feet[k].foot).filter(Boolean) : [];
-        if (pts.length === 2) dir = tracker.x < (pts[0].x + pts[1].x) / 2 ? 1 : -1;
-        else hint('BALL AT YOUR RIGHT FOOT', 'Then push it across to the lit ring', 'info', 5000);
-        s.cx = tracker.x + dir * this.OFF * tracker.r; s.cy = tracker.y;
+        if (pts.length === 2) { const mid = (pts[0].x + pts[1].x) / 2; if (Math.abs(tracker.x - mid) > tracker.r) dir = tracker.x < mid ? 1 : -1; }
+        s.cx = tracker.x; s.cy = tracker.y;
         s.side = dir > 0 ? 1 : 0; s.restSince = 0; s.contact = null;
-        const far = s.cx + dir * this.OFF * tracker.r, m = this.RR * tracker.r + 0.02;
-        if (far < m || far > 1 - m) hint('MOVE TO THE MIDDLE', 'The other ring is off screen', 'info');
+        const m = (this.OFF + this.RR) * tracker.r + 0.02;
+        if (s.cx < m || s.cx > 1 - m) hint('MOVE TO THE MIDDLE', 'A ring is off screen', 'info');
         setDirectionHint(s.side === 0 ? 'R' : 'L'); // small image x = player's right after mirroring
       },
       setup(s) { s.cx = null; s.lastT = 0; s.restSince = 0; s.feet = { L: 'away', R: 'away' }; s.contact = null; s.lastFeet = null; if (tracker.found) this.place(s, getFeet()); else setDirectionHint(null); },
-      onTap(s) { if (tracker.found) { this.place(s, s.lastFeet); showHud('RESET', 'Ball is home, go to the lit ring', 'info'); } },
+      onTap(s) { if (tracker.found) { this.place(s, s.lastFeet); showHud('RE-CENTRED', 'Rings set around the ball', 'info'); } },
       update(s, now, feet) {
         if (!tracker.found) return;
         if (feet) s.lastFeet = feet;
@@ -1071,13 +1100,15 @@
         for (const side of ['L', 'R']) {
           const f = feet[side].foot; if (!f) continue;
           const d = adist(f.x, f.y, tracker.x, tracker.y) / tracker.r;
-          const onTop = d < 1.3 && f.y < tracker.y - 0.2 * tracker.rh();
+          // Toe inside the ball's disc and not clearly below its centre. From a high camera the toe
+          // on top of the ball sits near the ball's centre; from a low one it sits above it.
+          const onTop = d < 1.15 && f.y < tracker.y + 0.3 * tracker.rh();
           if (s.state[side] === 'away' && onTop && now - s.lastT > 120) {
             s.state[side] = 'on'; s.lastT = now;
             registerRep(now);
             if (s.last === side) hint('ALTERNATE FEET', 'Left, right, left, right', 'info', 2500);
             s.last = side;
-          } else if (s.state[side] === 'on' && d > 1.9) {
+          } else if (s.state[side] === 'on' && d > 1.7) {
             s.state[side] = 'away';
           }
         }
@@ -1099,18 +1130,18 @@
         const r = tracker.r, rh = tracker.rh();
         if (s.phase === 'wait') {
           if (tracker.speedR(now) < 1.0) { s.ox = tracker.x; s.oy = tracker.y; }
-          if (tracker.y < s.oy - 1.0 * rh) { s.phase = 'drag'; s.t0 = now; }   // ball moved away from camera (up the frame)
+          if (tracker.y < s.oy - 0.8 * rh) { s.phase = 'drag'; s.t0 = now; }   // ball moved toward the player (up the frame)
         } else if (s.phase === 'drag') {
           const dx = tracker.x - s.ox;
-          if (Math.abs(dx) >= 2.0 * r) {
+          if (Math.abs(dx) >= 1.6 * r) {
             const dir = Math.sign(dx);
             registerRep(now);
             showHud('L-DRAG ✓', dir === s.lastDir ? 'Nice. Other foot next' : 'Clean', 'good');
             s.lastDir = dir; s.phase = 'wait'; s.ox = tracker.x; s.oy = tracker.y;
-          } else if (tracker.y > s.oy - 0.3 * rh) {
+          } else if (tracker.y > s.oy - 0.2 * rh) {
             s.phase = 'wait';                                                  // rolled back without the push
-          } else if (now - s.t0 > 1500) {
-            s.phase = 'wait'; hint('FASTER', 'Push across right after the drag', 'info');
+          } else if (now - s.t0 > 2500) {
+            s.phase = 'wait'; hint('PUSH ACROSS', 'Right after the drag', 'info');
           }
         }
       },
@@ -1133,7 +1164,7 @@
       setup(s) { s.phase = 'ready'; s.kx = 0; s.ky = 0; s.t0 = 0; s.settle = 0; s.lost = 0; },
       update(s, now, feet) {
         if (s.phase === 'ready') {
-          if (tracker.found && tracker.speedR(now) > 6 && tracker.dispOver(150, now) > 1.2) {
+          if (tracker.found && tracker.speedR(now) > 5 && tracker.dispOver(150, now) > 1.0) {
             s.phase = 'out'; s.kx = tracker.x; s.ky = tracker.y; s.t0 = now;
           }
         } else if (s.phase === 'out') {
@@ -1162,67 +1193,83 @@
 
     kicking_form: {
       name: 'Kicking Form', go: 'Set the ball and strike!',
-      cues: ['Plant foot beside the ball, toes to the target', 'Lock your ankle before contact', 'Head over the ball', 'Follow through toward the target'],
+      cues: ['Plant foot beside the ball, toes to the target', 'Lock your ankle before contact', 'Knee and head over the ball', 'Swing all the way through'],
       nudge: 'Set the ball, step back, and strike it',
-      tip: '<strong>Kicking form.</strong> Place the ball, step up and strike it. At impact I check your plant foot (beside the ball, a hand\'s width away) and whether your kicking ankle stays locked. Camera should face you.',
-      K: { plantMin: 1.2, plantMax: 3.2, kickSpeed: 6, kickDisp: 1.2, inside: [75, 120], laces: [120, 175], drift: 18 },
-      setup(s) { s.phase = 'set'; s.snap = null; s.t0 = 0; },
+      tip: '<strong>Kicking form.</strong> Camera <em>side-on</em>, 8–10 ft away, so you kick across the picture (toward a wall or goal to the side). Set the ball in the circle, step back and strike. At impact I check the plant foot beside the ball, the locked ankle, the knee over the ball and the follow-through.',
+      // Side-on camera. All distances in ball radii along the kick direction (ahead = positive).
+      K: { plantBehind: -2.0, plantAhead: 1.0, kneeBehind: -1.8, follow: 1.5, kickSpeed: 5, kickDisp: 1.0, inside: [75, 120], laces: [120, 175], drift: 18 },
+      setup(s) { s.phase = 'set'; s.snap = null; s.t0 = 0; s.pending = null; },
       update(s, now, feet) {
         const K = this.K;
+        if (s.pending && now - s.pending.t >= 350) { const p = s.pending; s.pending = null; this.verdict(p, feet); }
         if (s.phase === 'set') {
           if (!tracker.found) return;
           const slow = tracker.speedR(now) < 1.5;
           if (slow && feet) s.snap = { feet: cloneFeet(feet), bx: tracker.x, by: tracker.y, r: tracker.r, t: now };
           if (tracker.speedR(now) > K.kickSpeed && tracker.dispOver(150, now) > K.kickDisp) {
-            if (s.snap && now - s.snap.t < 600) this.evaluate(s.snap, feet);
-            else hint('STRIKE SEEN', 'Set the ball still before you kick', 'info');
+            if (s.snap && now - s.snap.t < 600) {
+              const dir = Math.sign(tracker.x - s.snap.bx) || 1;
+              s.pending = { t: now, snap: s.snap, impact: cloneFeet(feet), dir, speed: tracker.speedR(now) };
+            } else hint('STRIKE SEEN', 'Set the ball still before you kick', 'info');
             s.phase = 'cool'; s.t0 = now; s.snap = null;
           }
         } else if (s.phase === 'cool') {
           if (now - s.t0 > 1500 && (!tracker.found || tracker.speedR(now) < 1.5)) s.phase = 'set';
         }
       },
-      evaluate(snap, cur) {
-        const K = this.K, f = snap.feet;
-        const dl = f.L.foot ? adist(f.L.foot.x, f.L.foot.y, snap.bx, snap.by) : Infinity;
-        const dr = f.R.foot ? adist(f.R.foot.x, f.R.foot.y, snap.bx, snap.by) : Infinity;
+      // p = { snap (pre-impact frame), impact (frame at impact), dir (kick direction in image x), speed }
+      // `after` = feet ~350 ms after impact, for the follow-through.
+      verdict(p, after) {
+        const K = this.K, f = p.snap.feet, bx = p.snap.bx, r = p.snap.r, dir = p.dir;
+        const rel = (pt) => pt ? (pt.x - bx) / r * dir : null;           // ahead of the ball = positive
+        const dl = f.L.foot ? adist(f.L.foot.x, f.L.foot.y, bx, p.snap.by) : Infinity;
+        const dr = f.R.foot ? adist(f.R.foot.x, f.R.foot.y, bx, p.snap.by) : Infinity;
         if (dl === Infinity && dr === Infinity) { showHud('STRIKE', 'Could not see your feet', 'info'); return; }
-        const strike = dl < dr ? 'L' : 'R', plant = strike === 'L' ? 'R' : 'L';
-        const pf = f[plant].ankle || f[plant].foot;
-        const plantD = pf ? Math.abs(pf.x - snap.bx) / snap.r : null;
-        const plantOK = plantD !== null && plantD >= K.plantMin && plantD <= K.plantMax;
+        // Just before impact the plant foot is beside the ball and the kicking foot is back in its swing.
+        const plant = dl <= dr ? 'L' : 'R', strike = plant === 'L' ? 'R' : 'L';
+        // 1. Plant foot beside the ball (side-on: level with it, not behind, not past it)
+        const plantRel = rel(f[plant].ankle || f[plant].foot);
+        const plantOK = plantRel !== null && plantRel >= K.plantBehind && plantRel <= K.plantAhead;
+        const plantMsg = plantRel === null ? 'Plant foot not seen' : plantOK ? 'Plant ✓' : plantRel < K.plantBehind ? 'Plant foot too far behind' : 'Plant foot past the ball';
+        // 2. Ankle locked through contact
         const range = settings.strike === 'laces' ? K.laces : K.inside;
         const pre = jointAngle(f[strike].knee, f[strike].ankle, f[strike].foot);
-        const post = cur ? jointAngle(cur[strike].knee, cur[strike].ankle, cur[strike].foot) : null;
+        const post = p.impact ? jointAngle(p.impact[strike].knee, p.impact[strike].ankle, p.impact[strike].foot) : null;
         const inRange = pre !== null && pre >= range[0] && pre <= range[1];
-        const steady = pre === null || post === null || Math.abs(post - pre) < K.drift;
-        const locked = inRange && steady;
+        const locked = inRange && (post === null || Math.abs(post - pre) < K.drift);
+        const ankleMsg = pre === null ? 'Ankle not seen' : locked ? 'Ankle ✓' : !inRange
+          ? (settings.strike === 'inside' ? 'Turn the foot out, lock it' : 'Point the toes, lock it') : 'Ankle wobbled';
+        // 3. Knee over the ball at impact
+        const kneeRel = p.impact && p.impact[strike].knee ? rel(p.impact[strike].knee) : null;
+        const kneeOK = kneeRel !== null && kneeRel >= K.kneeBehind;
+        const kneeMsg = kneeRel === null ? '' : kneeOK ? 'Knee over ✓' : 'Lean over the ball';
+        // 4. Follow-through: kicking foot well past where the ball was
+        const ftRel = after && after[strike].foot ? rel(after[strike].foot) : null;
+        const ftOK = ftRel !== null && ftRel >= K.follow;
+        const ftMsg = ftRel === null ? '' : ftOK ? 'Follow-through ✓' : 'Swing through';
         let score = 0;
-        score += plantD === null ? 30 : plantOK ? 50 : 25;
-        score += pre === null ? 30 : locked ? 50 : inRange ? 35 : 20;
-        const plantMsg = plantD === null ? 'Plant foot not seen' : plantOK ? 'Plant ✓' : plantD < K.plantMin ? 'Plant foot too close' : 'Plant foot too far';
-        const ankleMsg = pre === null ? 'Ankle not seen' : locked ? 'Ankle locked ✓' : !inRange
-          ? (settings.strike === 'inside' ? 'Turn foot out, lock ankle' : 'Point toes, lock ankle') : 'Ankle wobbled at impact';
+        score += plantRel === null ? 18 : plantOK ? 30 : 12;
+        score += pre === null ? 18 : locked ? 30 : inRange ? 20 : 10;
+        score += kneeRel === null ? 12 : kneeOK ? 20 : 8;
+        score += ftRel === null ? 12 : ftOK ? 20 : 8;
         const title = score >= 90 ? 'PERFECT STRIKE' : score >= 70 ? 'GOOD STRIKE' : 'FIX YOUR FORM';
-        showHud(title, `${plantMsg} · ${ankleMsg}`, score >= 70 ? 'good' : 'warn', 2600);
+        const fixes = [[plantOK, plantMsg], [locked, ankleMsg], [kneeOK, kneeMsg], [ftOK, ftMsg]].filter(x => !x[0] && x[1]).map(x => x[1]);
+        showHud(title, fixes.length ? fixes.slice(0, 2).join(' · ') : 'Plant, ankle, knee, follow-through all good', score >= 70 ? 'good' : 'warn', 3000);
         if (score >= 90) synthTone(880, 'triangle', 0.25); else playBuzz();
-        speak(score >= 90 ? 'Perfect strike!' : score >= 70 ? 'Good strike' : (!plantOK && plantD !== null ? plantMsg : ankleMsg), true);
+        speak(score >= 90 ? 'Perfect strike!' : score >= 70 ? `Good strike. ${fixes[0] || ''}` : (fixes[0] || 'Fix your form'), true);
         formRatings.push(score);
         registerRep(performance.now(), { silent: true });
         captureClip(`${title} · ${score}%`);
       },
       draw(s, ctx, W, H) {
         if (!tracker.found) return;
-        const K = this.K, r = tracker.r * W, bx = tracker.x * W, by = tracker.y * H + 0.3 * r;
+        const r = tracker.r * W, bx = tracker.x * W, by = tracker.y * H + 0.4 * r;
+        // Plant band on the floor beside the ball (either side, since the kick direction isn't known yet)
         ctx.save(); ctx.fillStyle = 'rgba(0,255,102,0.18)'; ctx.strokeStyle = 'rgba(0,255,102,0.6)'; ctx.setLineDash([4, 4]);
-        for (const sgn of [-1, 1]) {
-          const x0 = bx + sgn * K.plantMin * r, x1 = bx + sgn * K.plantMax * r;
-          ctx.fillRect(Math.min(x0, x1), by - 0.5 * r, Math.abs(x1 - x0), r);
-          ctx.strokeRect(Math.min(x0, x1), by - 0.5 * r, Math.abs(x1 - x0), r);
-        }
+        ctx.fillRect(bx - 2.0 * r, by - 0.4 * r, 4.0 * r, 0.8 * r); ctx.strokeRect(bx - 2.0 * r, by - 0.4 * r, 4.0 * r, 0.8 * r);
         ctx.restore();
-        drawLabel(ctx, 'PLANT ZONE', bx, by - 1.1 * r, W * 0.03, 'rgba(0,255,102,0.9)');
-        drawLabel(ctx, s.phase === 'set' ? 'STRIKE WHEN READY' : 'RESET THE BALL', W / 2, H * 0.12, W * 0.045, s.phase === 'set' ? '#00FF66' : '#8396a8');
+        drawLabel(ctx, 'PLANT FOOT BESIDE THE BALL', bx, by - 1.2 * r, W * 0.028, 'rgba(0,255,102,0.9)');
+        drawLabel(ctx, s.phase === 'set' ? 'STRIKE ACROSS THE PICTURE' : 'RESET THE BALL', W / 2, H * 0.12, W * 0.042, s.phase === 'set' ? '#00FF66' : '#8396a8');
       }
     }
   };
@@ -1338,12 +1385,13 @@
     drillId = b.drill; $('drillSelect').value = drillId; setDrillUi();
     challenge = 'workout'; timedSeconds = b.seconds;
     $('startDrillBtn').disabled = true;
-    runCountdown(() => {
+    const go = () => runCountdown(() => {
       if (!wk) return;
       $('startDrillBtn').disabled = false; $('startDrillBtn').innerText = 'Restart Workout';
       beginLive();
       coach.say(`${DRILLS[drillId].go}${b.goal ? ` Try for ${b.goal}.` : ''}`, 'high');
     });
+    if (wk.def.blocks.findIndex(x => x.drill) === wk.idx) getReady(go); else go(); // first block: wait for the player to get into position
   }
   function startRest(b) {
     const next = wk.def.blocks[wk.idx + 1];
@@ -1393,7 +1441,7 @@
     if (live) captureBlock();
     wk = null; // cleared before anything that might re-enter (endSession, showScreen)
     paused = false; $('pauseBtn').innerText = 'Pause'; $('startDrillBtn').innerText = 'Start Workout'; $('startDrillBtn').disabled = false;
-    clearInterval(runCountdown._t); $('countdownOverlay').style.display = 'none';
+    clearInterval(runCountdown._t); $('countdownOverlay').style.display = 'none'; readyState = null;
     const results = w.results;
     if (!save || !results.length) { setStatus('CAMERA ON'); coach.stop(); setDrillUi(); return; }
     const total = results.reduce((a, r) => a + r.reps, 0);
@@ -1553,15 +1601,15 @@
   async function startDrill() {
     if (!cameraOn()) { const ok = await startCamera(); if (!ok) { showHud('NO CAMERA', 'Allow camera access', 'warn'); return; } keepAwake(true); }
     if (workoutSelected()) return startWorkout();
-    if (live) endSession(false);
+    if (live || readyState) endSession(false);
     audio();
     challenge = $('challengeSelect').value; timedSeconds = 30;
     $('startDrillBtn').disabled = true;
-    runCountdown(() => {
+    getReady(() => runCountdown(() => {
       $('startDrillBtn').disabled = false; $('startDrillBtn').innerText = 'Restart Drill';
       beginLive();
       speak(DRILLS[drillId].go, true);
-    });
+    }));
   }
   function beginLive() {
     paused = false; $('pauseBtn').innerText = 'Pause';
@@ -1586,6 +1634,7 @@
   }
   function endSession(save) {
     if (wk) return finishWorkout(true, save);
+    if (readyState) { readyState = null; $('startDrillBtn').disabled = false; setStatus('CAMERA ON'); coach.stop(); }
     if (!live) return;
     if (paused) { sessionStart += performance.now() - pauseT; paused = false; }
     $('pauseBtn').innerText = 'Pause';
@@ -1626,13 +1675,15 @@
       if (!poseBusy) { poseBusy = true; poseBusySince = now; pose.send({ image: trainVideo }).catch(() => { poseBusy = false; }); }
     }
     const feet = getFeet();
+    checkReady(now);
     if (live && !paused) updateSession(now, feet);
     const W = trainCanvas.width, H = trainCanvas.height;
     tCtx.clearRect(0, 0, W, H);
     if (settings.mask) tracker.drawMask(tCtx, W, H);
     drawSkeleton(tCtx, feet, W, H);
     drawBall(tCtx, W, H, now);
-    if (drill) drill.def.draw(drill, tCtx, W, H, now);
+    if (!live && !(wk && wk.resting)) drawGuide(tCtx, W, H, drillId === 'kicking_form');
+    else if (drill) drill.def.draw(drill, tCtx, W, H, now);
     replay.tick(now, trainVideo, trainCanvas);
     fpsCount++;
     if (now - fpsT0 > 1000) { fpsValue = Math.round(fpsCount * 1000 / (now - fpsT0)); fpsCount = 0; fpsT0 = now; }
@@ -1808,6 +1859,11 @@
   $('challengeSelect').onchange = () => { if (live) { endSession(repCount > 0); showHud('CHALLENGE CHANGED', 'Press Start Drill', 'info'); } };
   $('strikeSelect').value = settings.strike;
   $('strikeSelect').onchange = (e) => { settings.strike = e.target.value; saveSettings(); };
+  // Browsers restore <select> values when a tab reloads (phones do this when you switch apps), so
+  // read the dropdowns at startup instead of assuming the defaults.
+  drillId = DRILLS[$('drillSelect').value] ? $('drillSelect').value : 'foundations'; $('drillSelect').value = drillId;
+  if (!WORKOUTS[$('workoutSelect').value]) $('workoutSelect').value = 'none';
+  if (workoutSelected()) { $('drillSelect').disabled = true; $('challengeSelect').disabled = true; $('startDrillBtn').innerText = 'Start Workout'; }
   setDrillUi();
 
   function mainLoop(now) {

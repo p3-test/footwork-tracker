@@ -21,19 +21,23 @@ Live: https://p3-test.github.io/footwork-tracker/
 
 | Drill | Rep counts when… | Feedback |
 | :--- | :--- | :--- |
-| **Foundations (Inside-Outs)** | Start with the ball at one foot. That spot is the home ring; the far ring (3.6 ball radii across, toward the other foot) lights first. Direction comes from the pose (ball right of the feet midpoint means go left). Rings slide with the ball's depth. A touch counts when a foot arrives at the ball and the ball moves 0.6 radii toward the lit side, or when the ball centre reaches the lit ring. Tap the video to reset. | Big LEFT/RIGHT arrow, lower ding for right, higher for left |
-| **Toe Taps** | A toe lands on top of the ball (within 1.3 radii and above the ball's center) after being away from it. | "Alternate feet" if the same foot taps twice |
-| **L-Drags** | The ball rolls back (away from the camera) at least one radius, then across at least two radii within 1.5 s. | "Faster" if the push doesn't follow the drag |
-| **Wall Pass & Control** | The ball is struck (fast, more than 1.2 radii in 150 ms), travels at least 3 radii away or leaves the frame, then comes back and stops within 2.5 radii of a foot. | "Clean control" inside 1.6 radii, otherwise "Keep it closer" |
-| **Kicking Form** | A strike is detected while the ball was sitting still. The frame just before impact is scored. | Plant-foot distance and ankle lock, 0–100 score, slow-motion replay |
+| **Foundations (Inside-Outs)** | Ball in the guide circle between the feet. Rings sit 2.2 ball radii either side and slide with the ball's depth. A touch counts when a foot arrives at the ball and the ball moves 0.6 radii toward the lit side, or when the ball centre reaches the lit ring. Tap the video to re-centre. | Big LEFT/RIGHT arrow, lower ding for right, higher for left |
+| **Toe Taps** | A toe lands inside the ball's disc (within 1.15 radii, not below its centre) after being away from it. Works from a high or low camera. | "Alternate feet" if the same foot taps twice |
+| **L-Drags** | The ball rolls back toward the player at least 0.8 radii, then across at least 1.6 radii within 2.5 s. | "Push across" if the push doesn't follow the drag |
+| **Wall Pass & Control** | The ball is struck (more than 1 radius in 150 ms), travels at least 3 radii away or leaves the frame, then comes back and stops within 2.5 radii of a foot. | "Clean control" inside 1.6 radii, otherwise "Keep it closer" |
+| **Kicking Form** | Camera **side-on**: the player kicks across the picture. A strike is detected while the ball was sitting still; the frame just before impact, the impact frame and a frame 350 ms later are scored. | Plant foot beside the ball, ankle lock, knee over the ball, follow-through; 0–100 score; slow-motion replay |
 
-### Kicking form scoring
+### Kicking form scoring (side-on camera)
 
-* **Plant foot**: lateral distance from the plant ankle to the ball center must be 1.2–3.2 ball radii.
-* **Ankle lock**: knee–ankle–toe angle of the striking leg at impact. Inside-foot pass expects 75–120°, laces drive expects 120–175°, and the angle must not change by more than 18° through contact.
-* Score = plant (50) + ankle (50). ≥ 90 is "Perfect strike", ≥ 70 "Good strike", otherwise "Fix your form".
+Just before impact the plant foot is beside the ball and the kicking foot is back in its swing, which is how the two feet are told apart. Distances are in ball radii along the kick direction (ahead of the ball = positive).
 
-These thresholds are heuristics tuned on a low, front-facing camera. They are in `DRILLS.kicking_form.K` in `index.html` if you want to adjust them.
+* **Plant foot** (30): plant ankle between 2.0 radii behind and 1.0 ahead of the ball.
+* **Ankle lock** (30): knee–ankle–toe angle of the kicking leg. Inside-foot pass expects 75–120°, laces drive 120–175°, and it must not change by more than 18° through contact.
+* **Knee over the ball** (20): kicking knee no more than 1.8 radii behind the ball at impact.
+* **Follow-through** (20): kicking foot at least 1.5 radii past the ball 350 ms after impact.
+* ≥ 90 "Perfect strike", ≥ 70 "Good strike", otherwise "Fix your form", with the top two fixes spoken and shown.
+
+Thresholds are in `DRILLS.kicking_form.K` in `index.html`.
 
 ## Voice coach
 
@@ -81,7 +85,7 @@ Timed modes nag with "Speed up!" if cadence drops below 1.33 reps per second.
 
 ## Setup that works
 
-1. Front camera facing the player, portrait. A low stand (6–12 inches) or a tripod tilted down both work. Stand back until the ball sits around the **middle of the picture**, not the bottom edge. For Foundations, start with the ball at one foot: that becomes the home ring and the far ring lights first. Rings follow the ball's depth and reset when you tap the video (or if the ball sits far away for 4 seconds); a big LEFT/RIGHT arrow at the top of the video shows the next target.
+1. Front camera facing the player, portrait. A low stand (6–12 inches) or a tripod tilted down both work. Stand back until the ball sits around the **middle of the picture**, not the bottom edge. Before a drill starts the video shows a yellow guide: a circle for the ball and outlines for the feet. Press Start, walk back, put the ball in the circle, and the app counts down once it sees the ball at rest with your feet in view (or after 15 s). For Foundations the rings are placed either side of the ball at that moment, follow the ball's depth, and re-centre when you tap the video; a big LEFT/RIGHT arrow at the top of the video shows the next target.
 2. Ball on the floor in view. **Tap it on screen** to lock its color. Re-tap any time the lighting changes.
 3. Use a **bright ball** (orange, yellow, pink) that doesn't match socks, shoes or the floor. White balls on light floors and dark balls in dim rooms track poorly.
 4. Feet and ball should both be in frame. Avoid direct sun glare on the floor.
