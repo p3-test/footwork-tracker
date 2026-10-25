@@ -70,8 +70,10 @@
     .setup-card strong { color: var(--neon-green); display: block; margin-bottom: 4px; }
     .tip-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 0.74rem; color: var(--text-muted); line-height: 1.35; display: flex; gap: 10px; align-items: center; }
     .tip-card strong { color: var(--electric-blue); }
-    .tip-card .move { flex: 0 0 92px; }
+    .tip-card .move { flex: 0 0 124px; }
     .move svg { width: 100%; height: auto; display: block; }
+    .steps { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 5px; font-size: 0.68rem; color: var(--text); }
+    .steps b { color: var(--neon-green); margin-right: 2px; }
     .plan { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .plan span { font-size: 0.62rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
     .plan span.done { color: var(--neon-green); border-color: var(--neon-green); opacity: 0.55; }
@@ -82,25 +84,10 @@
     .rest-overlay .big { font-size: 4.5rem; font-weight: 900; color: var(--electric-blue); line-height: 1; text-shadow: 0 0 24px var(--electric-blue-glow); }
     .rest-overlay .next { font-size: 1rem; font-weight: 800; }
     .rest-overlay .next span { color: var(--neon-green); }
-    .rest-overlay .move { width: 170px; }
+    .rest-overlay .move { width: 230px; }
     .rest-overlay small { color: var(--text-muted); font-size: 0.75rem; max-width: 85%; }
+    .rest-overlay .steps { justify-content: center; font-size: 0.74rem; }
     .rest-overlay button { margin-top: 6px; }
-    /* Move animations (used by the per-drill illustration) */
-    .mv { transform-box: fill-box; transform-origin: center; }
-    .mv-side { animation: mv-side 1.4s ease-in-out infinite; }
-    .mv-tapL { animation: mv-tapL 1.6s ease-in-out infinite; }
-    .mv-tapR { animation: mv-tapR 1.6s ease-in-out infinite; }
-    .mv-ldrag { animation: mv-ldrag 2.2s ease-in-out infinite; }
-    .mv-wall { animation: mv-wall 1.8s ease-in-out infinite; }
-    .mv-kick { animation: mv-kick 2s ease-in-out infinite; transform-origin: 10% 90%; }
-    .mv-shoot { animation: mv-shoot 2s ease-in infinite; }
-    @keyframes mv-side { 0%, 100% { transform: translateX(-26px); } 50% { transform: translateX(26px); } }
-    @keyframes mv-tapL { 0%, 40%, 100% { transform: translate(0, 0); } 15% { transform: translate(16px, -20px); } }
-    @keyframes mv-tapR { 0%, 50%, 100% { transform: translate(0, 0); } 65% { transform: translate(-16px, -20px); } }
-    @keyframes mv-ldrag { 0% { transform: translate(0, 0); } 35% { transform: translate(0, 16px); } 70% { transform: translate(-44px, 16px); } 85% { transform: translate(-44px, 16px); } 100% { transform: translate(0, 0); } }
-    @keyframes mv-wall { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-44px); } }
-    @keyframes mv-kick { 0%, 20% { transform: rotate(0); } 35% { transform: rotate(-45deg); } 50% { transform: rotate(25deg); } 70%, 100% { transform: rotate(0); } }
-    @keyframes mv-shoot { 0%, 48% { transform: translateX(0); opacity: 1; } 72% { transform: translateX(70px); opacity: 0; } 73%, 100% { transform: translateX(0); opacity: 1; } }
     .wk-card { background: var(--card); border: 1px solid var(--neon-green); border-radius: 8px; padding: 10px; font-size: 0.75rem; display: none; }
     .wk-card.show { display: block; }
     .wk-card h3 { font-size: 0.85rem; margin-bottom: 4px; }
@@ -1256,19 +1243,62 @@
     striker: { name: 'Striker', mins: 6, desc: 'Warm up the feet, then two blocks of scored strikes.', blocks: [
       { drill: 'foundations', seconds: 45, goal: 45 }, { rest: 15 }, { drill: 'kicking_form', seconds: 90, goal: 8 }, { rest: 20 }, { drill: 'kicking_form', seconds: 90, goal: 8 }, { rest: 15 }, { drill: 'toe_taps', seconds: 45, goal: 45 } ] }
   };
-  // Small animated illustration of each move (two boots and a ball, front view).
+  // Animated stick-figure illustration of each move (SMIL animations, 160x116 viewBox).
+  // Front view for inside-outs and toe taps, top-down for the L-drag (so the L is obvious),
+  // side view for the wall pass and the strike (so the plant foot and swing are visible).
+  const MOVE_STEPS = {
+    foundations: ['Ball at one foot', 'Inside of foot pushes it across', 'Other foot pushes it back'],
+    toe_taps: ['Sole on top of the ball', 'Switch feet, light hops', 'Ball stays still'],
+    l_drags: ['Sole drags the ball back', 'Same foot pushes it across', 'Switch feet'],
+    wall_pass: ['Firm pass to the wall', 'Move to meet the rebound', 'Soft first touch'],
+    kicking_form: ['Plant foot beside the ball', 'Lock the ankle', 'Strike and follow through']
+  };
   function moveSvg(id) {
-    const boot = (x, cls = '') => `<g class="mv ${cls}"><rect x="${x}" y="50" width="28" height="14" rx="6" fill="#00E5FF"/><rect x="${x + 5}" y="38" width="12" height="16" rx="4" fill="#00E5FF" opacity="0.75"/></g>`;
-    const ball = (x, y, cls = '') => `<circle class="mv ${cls}" cx="${x}" cy="${y}" r="9" fill="#FF6A00" stroke="#fff" stroke-width="1.5"/>`;
-    const floor = '<line x1="4" y1="66" x2="116" y2="66" stroke="#2a3a50" stroke-width="2"/>';
+    const FIG = 'stroke="#00E5FF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"';
+    const anim = (attr, values, kt, dur) => `<animate attributeName="${attr}" dur="${dur}s" repeatCount="indefinite" calcMode="linear" keyTimes="${kt.join(';')}" values="${values.join(';')}"/>`;
+    const leg = (frames, kt, dur) => `<polyline ${FIG} points="${frames[0]}">${anim('points', frames, kt, dur)}</polyline>`;
+    const ball = (x, y, inner = '') => `<g><circle cx="${x}" cy="${y}" r="9" fill="#FF6A00" stroke="#fff" stroke-width="1.5">${inner}</circle></g>`;
+    const floor = (y = 102) => `<line x1="6" y1="${y}" x2="154" y2="${y}" stroke="#2a3a50" stroke-width="2"/>`;
+    const text = (x, y, t, c = '#8396a8') => `<text x="${x}" y="${y}" font-size="8" font-weight="700" fill="${c}" text-anchor="middle" font-family="sans-serif">${t}</text>`;
+    const upper = (x, y0) => `<circle cx="${x}" cy="${y0}" r="7" ${FIG}/><line x1="${x}" y1="${y0 + 7}" x2="${x}" y2="${y0 + 40}" ${FIG}/><polyline ${FIG} points="${x - 15},${y0 + 24} ${x},${y0 + 13} ${x + 15},${y0 + 24}"/>`;
     let body = '';
-    if (id === 'foundations') body = boot(10) + boot(82) + ball(60, 57, 'mv-side');
-    else if (id === 'toe_taps') body = boot(18, 'mv-tapL') + boot(74, 'mv-tapR') + ball(60, 57);
-    else if (id === 'l_drags') body = boot(72) + ball(62, 40, 'mv-ldrag');
-    else if (id === 'wall_pass') body = '<rect x="4" y="4" width="112" height="5" rx="2" fill="#8396a8"/>' + boot(46) + ball(60, 57, 'mv-wall');
-    else if (id === 'kicking_form') body = boot(14) + boot(56, 'mv-kick') + ball(100, 57, 'mv-shoot');
-    return `<svg viewBox="0 0 120 72" xmlns="http://www.w3.org/2000/svg">${floor}${body}</svg>`;
+    if (id === 'foundations') {
+      const d = 2.4, kt = [0, 0.12, 0.25, 0.5, 0.62, 0.75, 1];
+      const R = '80,56 70,78 68,98 60,100', Rin = '80,56 76,78 76,98 68,100';
+      const L = '80,56 90,78 92,98 100,100', Lin = '80,56 84,78 84,98 92,100';
+      body = floor() + upper(80, 16) + leg([R, Rin, R, R, R, R, R], kt, d) + leg([L, L, L, L, Lin, L, L], kt, d)
+        + ball(60, 93, anim('cx', [60, 60, 100, 100, 100, 60, 60], [0, 0.12, 0.4, 0.5, 0.62, 0.9, 1], d));
+    } else if (id === 'toe_taps') {
+      const d = 2.0, kt = [0, 0.15, 0.3, 0.5, 0.65, 0.8, 1];
+      const R = '80,56 70,78 68,98 60,100', Rup = '80,56 70,70 76,80 82,85';
+      const L = '80,56 90,78 92,98 100,100', Lup = '80,56 90,70 84,80 78,85';
+      body = floor() + upper(80, 16) + ball(80, 93) + leg([R, Rup, R, R, R, R, R], kt, d) + leg([L, L, L, L, Lup, L, L], kt, d);
+    } else if (id === 'l_drags') {
+      const d = 2.8, kt = [0, 0.1, 0.4, 0.5, 0.8, 0.9, 1];
+      const path = '<polyline points="60,92 60,58 108,58" fill="none" stroke="#8396a8" stroke-width="2.5" stroke-dasharray="4 4"/>'
+        + '<polygon points="60,50 54,60 66,60" fill="#8396a8"/><polygon points="116,58 106,52 106,64" fill="#8396a8"/>'
+        + text(46, 80, '1  BACK', '#00FF66') + text(86, 72, '2  ACROSS', '#00FF66');
+      const figure = `<ellipse cx="80" cy="28" rx="26" ry="8" ${FIG}/><circle cx="80" cy="20" r="10" fill="#0a0f16" ${FIG}/>`
+        + `<ellipse cx="100" cy="42" rx="7" ry="13" fill="#00E5FF" opacity="0.7"/>`
+        + `<ellipse cx="60" cy="42" rx="7" ry="13" fill="#00E5FF"><animateTransform attributeName="transform" type="translate" dur="${d}s" repeatCount="indefinite" calcMode="linear" keyTimes="${kt.join(';')}" values="0 0;0 0;0 14;0 14;48 14;48 14;0 0"/></ellipse>`;
+      body = text(80, 10, 'VIEW FROM ABOVE') + path + figure
+        + ball(60, 92, anim('cx', [60, 60, 60, 60, 108, 108, 60], kt, d) + anim('cy', [92, 92, 58, 58, 58, 58, 92], kt, d));
+    } else if (id === 'wall_pass') {
+      const d = 2.6, kt = [0, 0.08, 0.18, 0.45, 0.8, 0.9, 1];
+      const base = '44,56 50,78 52,98 62,100', swing = '44,56 58,74 70,86 82,88', recv = '44,56 52,78 56,98 66,100';
+      body = floor() + '<rect x="146" y="28" width="8" height="74" rx="2" fill="#8396a8"/>' + text(150, 22, 'WALL')
+        + upper(44, 16) + `<polyline ${FIG} points="44,56 38,78 34,98 42,100" opacity="0.65"/>` + leg([base, swing, base, base, recv, base, base], kt, d)
+        + ball(64, 93, anim('cx', [64, 64, 136, 66, 66], [0, 0.1, 0.45, 0.8, 1], d));
+    } else if (id === 'kicking_form') {
+      const d = 2.4, kt = [0, 0.3, 0.42, 0.55, 0.75, 1];
+      const back = '66,56 54,78 46,98 36,100', impact = '66,56 78,76 90,88 100,92', follow = '66,56 80,66 96,66 108,60';
+      body = floor() + upper(66, 16) + `<polyline ${FIG} points="66,56 70,80 72,98 82,100"/>` + text(76, 112, 'PLANT', '#00FF66')
+        + leg([back, back, impact, follow, follow, back], kt, d)
+        + ball(90, 93, anim('cx', [90, 90, 160, 90, 90], [0, 0.42, 0.7, 0.71, 1], d) + anim('opacity', [1, 1, 0, 1, 1], [0, 0.42, 0.7, 0.71, 1], d));
+    }
+    return `<svg viewBox="0 0 160 116" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
   }
+  const stepsHtml = (id) => `<div class="steps">${(MOVE_STEPS[id] || []).map((s, i) => `<span><b>${i + 1}</b> ${s}</span>`).join('')}</div>`;
   (function fillWorkoutSelect() {
     const sel = $('workoutSelect');
     Object.entries(WORKOUTS).forEach(([id, w]) => { const o = document.createElement('option'); o.value = id; o.innerText = `${w.name} · ${w.mins} min`; sel.appendChild(o); });
@@ -1281,7 +1311,7 @@
     const idx = wk ? wk.idx : -1;
     const curBlock = wk && w.blocks[idx] && !w.blocks[idx].rest ? w.blocks[idx] : (w.blocks[idx + 1] && w.blocks[idx + 1].drill ? w.blocks[idx + 1] : w.blocks.find(b => b.drill));
     const chips = w.blocks.map((b, i) => `<span class="${i < idx ? 'done' : i === idx ? 'now' : ''}">${blockLabel(b)}</span>`).join('');
-    $('drillTip').innerHTML = `<div class="move">${moveSvg(curBlock.drill)}</div><div><strong>${w.name}</strong> · ${w.mins} min. ${w.desc}<div class="plan">${chips}</div></div>`;
+    $('drillTip').innerHTML = `<div class="move">${moveSvg(curBlock.drill)}</div><div><strong>${w.name}</strong> · ${w.mins} min. ${w.desc}<div class="plan">${chips}</div>${stepsHtml(curBlock.drill)}</div>`;
   }
   $('workoutSelect').onchange = () => {
     if (wk) finishWorkout(true); else if (live) endSession(repCount > 0);
@@ -1321,7 +1351,7 @@
     const tip = next && next.drill ? DRILLS[next.drill].cues[0] : '';
     wk.resting = true; wk.restLeft = b.rest; wk.restCalled = new Set();
     $('restNext').innerText = nextName; $('restMove').innerHTML = next && next.drill ? moveSvg(next.drill) : '';
-    $('restTip').innerText = tip; $('restBig').innerText = b.rest; $('restOverlay').classList.add('show');
+    $('restTip').innerHTML = next && next.drill ? stepsHtml(next.drill) : ''; $('restBig').innerText = b.rest; $('restOverlay').classList.add('show');
     setStatus('REST'); $('startDrillBtn').disabled = false;
     coach.say(`Rest. Next up, ${nextName}. ${tip}`, 'high');
     clearInterval(wk.restTimer);
@@ -1769,7 +1799,7 @@
 
   function setDrillUi() {
     if (workoutSelected()) renderPlan();
-    else $('drillTip').innerHTML = `<div class="move">${moveSvg(drillId)}</div><div>${DRILLS[drillId].tip}</div>`;
+    else $('drillTip').innerHTML = `<div class="move">${moveSvg(drillId)}</div><div>${DRILLS[drillId].tip}${stepsHtml(drillId)}</div>`;
     $('strikeItem').style.display = drillId === 'kicking_form' ? 'block' : 'none';
     setDirectionHint(null);
     drill = makeDrill();
