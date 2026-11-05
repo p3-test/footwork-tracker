@@ -74,6 +74,23 @@
     .move svg { width: 100%; height: auto; display: block; }
     .steps { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 5px; font-size: 0.68rem; color: var(--text); }
     .steps b { color: var(--neon-green); margin-right: 2px; }
+    .cam-line { margin-top: 6px; font-size: 0.68rem; color: var(--text-muted); line-height: 1.35; }
+    .cam-line b { color: var(--alert-yellow); }
+    .rec-toggle { align-self: center; font-size: 0.72rem; }
+    #labList { display: flex; flex-direction: column; gap: 8px; }
+    .lab-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 0.74rem; display: flex; flex-direction: column; gap: 5px; }
+    .lab-item small { color: var(--text-muted); }
+    .lab-item .ctl { display: flex; gap: 4px; flex-wrap: wrap; }
+    .lab-item .ctl button { flex: 1; min-width: 70px; background: var(--border); color: #fff; border: none; border-radius: 4px; padding: 6px; font-size: 0.66rem; font-weight: 700; cursor: pointer; }
+    .lab-item table { font-size: 0.68rem; }
+    .lab-item td, .lab-item th { padding: 5px 6px; }
+    .labeler { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.97); display: none; flex-direction: column; gap: 10px; padding: 12px 16px; max-width: 650px; margin: 0 auto; overflow-y: auto; }
+    .labeler.show { display: flex; }
+    .labeler video { width: 100%; max-height: 52vh; background: #000; border-radius: 8px; }
+    .labeler .lab-top, .labeler .lab-bar { display: flex; align-items: center; gap: 8px; justify-content: space-between; font-size: 0.75rem; font-weight: 700; }
+    .labeler #labTouch { padding: 24px; font-size: 1.25rem; }
+    .labeler #labTouch.hit { background: #fff; }
+    .labeler small { color: var(--text-muted); font-size: 0.72rem; line-height: 1.4; }
     .plan { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .plan span { font-size: 0.62rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
     .plan span.done { color: var(--neon-green); border-color: var(--neon-green); opacity: 0.55; }
@@ -248,7 +265,7 @@
     <!-- ================= SETUP ================= -->
     <section id="setupScreen" class="screen active">
       <div class="setup-carousel">
-        <div class="setup-card"><strong>1. Phone placement</strong>Front camera facing you. Low stand (6–12") or a tripod tilted down. Stand back until the ball sits around the <em>middle</em> of the picture. For Kicking Form turn the phone <em>side-on</em> so you kick across the picture.</div>
+        <div class="setup-card"><strong>1. Phone placement</strong>Each drill says where the camera goes on the Train screen: front low, front raised, or side-on. Your whole body should be in the picture, head included, so the app can see your feet.</div>
         <div class="setup-card"><strong>2. Lock your ball</strong>Put the ball on the floor in view and tap it on screen. A bright ball (orange, yellow, pink) that doesn't match your socks or the floor works best.</div>
         <div class="setup-card"><strong>3. Check the frame</strong>Your feet and the ball should both be visible. Good light, no sun glare on the floor.</div>
       </div>
@@ -302,6 +319,8 @@
             <option value="foundations">Foundations (Inside-Outs)</option>
             <option value="toe_taps">Toe Taps</option>
             <option value="l_drags">L-Drags</option>
+            <option value="v_pulls">V-Pulls</option>
+            <option value="scissors">Scissors (beta)</option>
             <option value="wall_pass">Wall Pass &amp; Control</option>
             <option value="kicking_form">Kicking Form Analyzer</option>
           </select>
@@ -353,7 +372,7 @@
         <div class="ball-lost" id="ballLost">Can't see the ball — bring it into view</div>
         <div class="countdown-overlay" id="countdownOverlay">3</div>
         <div class="rest-overlay" id="restOverlay">
-          <div class="label">REST</div>
+          <div class="label" id="restLabel">REST</div>
           <div class="big" id="restBig">15</div>
           <div class="next">Next: <span id="restNext"></span></div>
           <div class="move" id="restMove"></div>
@@ -379,6 +398,7 @@
         <button class="action-btn btn-secondary" id="pauseBtn">Pause</button>
         <button class="action-btn btn-secondary" id="endBtn">End &amp; Save</button>
       </div>
+      <label class="toggle rec-toggle"><input type="checkbox" id="recToggle"> Record this drill for testing (video stays on this phone)</label>
       <button class="link-btn" id="repickBtn">Ball not tracking? Re-pick the ball color</button>
     </section>
 
@@ -401,11 +421,31 @@
       <div class="section-title">Instant Replays <small style="color:var(--text-muted);font-weight:600;text-transform:none;">this session only</small></div>
       <div class="clips-shelf" id="clipsShelf"></div>
       <div class="empty" id="clipsEmpty">Strikes in the Kicking Form drill and challenge wins are saved here in slow motion.</div>
+
+      <div class="section-title">Test Recordings <small style="color:var(--text-muted);font-weight:600;text-transform:none;">for tuning the counting</small></div>
+      <div id="labList"></div>
+      <div class="empty" id="labEmpty">Tick "Record this drill for testing" on the Train screen and do a drill. Then mark the real touches here and score how well the app counted.</div>
     </section>
   </main>
 
+  <!-- Mark-the-touches screen for test recordings -->
+  <div class="labeler" id="labeler">
+    <div class="lab-top"><b id="labTitle"></b><button class="metro-btn" id="labClose">Save &amp; close</button></div>
+    <video id="labVideo" playsinline controls></video>
+    <div class="lab-bar">
+      <span>Speed</span>
+      <button class="metro-btn" data-rate="0.25">¼x</button><button class="metro-btn" data-rate="0.5">½x</button><button class="metro-btn" data-rate="1">1x</button>
+      <span id="labCount">0 marked</span>
+    </div>
+    <button class="action-btn btn-green" id="labTouch">TOUCH</button>
+    <div class="lab-bar"><button class="metro-btn" id="labUndo">Undo last</button><button class="metro-btn" id="labClear">Clear all</button></div>
+    <small>Play the clip and tap TOUCH every time the ball is really touched. For toe taps, every tap. For scissors and V-pulls, once per move. Half speed or slower is most accurate. To place a mark exactly, pause on the frame and tap TOUCH. The video isn't mirrored here.</small>
+  </div>
+
   <script>
   'use strict';
+  // Set while a test recording is replayed through a drill: reps are collected, nothing is shown or heard.
+  let SIM = null;
   /* =========================================================
      UTILITIES
      ========================================================= */
@@ -436,7 +476,7 @@
   const settings = Object.assign({ voice: true, bpm: 120, metro: false, strike: 'inside', haptics: true, mask: false }, store.get('apex_settings', {}));
   const saveSettings = () => store.set('apex_settings', settings);
   const setStatus = (t) => { $('engineStatus').innerText = t; };
-  function buzz(pattern) { if (settings.haptics && navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} } }
+  function buzz(pattern) { if (SIM) return; if (settings.haptics && navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} } }
 
   /* Screen wake lock: keeps the phone from sleeping mid-drill */
   let wakeLock = null;
@@ -460,6 +500,7 @@
     return audioCtx;
   }
   function synthTone(freq, type = 'sine', duration = 0.08, gainVal = 0.2) {
+    if (SIM) return;
     const ctx = audio(); if (!ctx) return;
     const osc = ctx.createOscillator(), gain = ctx.createGain();
     osc.type = type; osc.frequency.value = freq;
@@ -501,7 +542,7 @@
       if (this.voice) sel.value = this.voice.name;
     },
     say(text, priority = 'normal') {
-      if (!this.ok() || !text) return false;
+      if (SIM || !this.ok() || !text) return false;
       const now = performance.now();
       if (priority === 'low' && (this.speaking || this.queue.length || now - this.lastEnd < 3000)) return false;
       if (priority === 'high') { this.queue = []; try { speechSynthesis.cancel(); } catch (e) {} this.speaking = false; this.current = null; }
@@ -636,7 +677,7 @@
   function demoStream() {
     const c = document.createElement('canvas'); c.width = 480; c.height = 640;
     const ctx = c.getContext('2d');
-    (function draw() {
+    const draw = () => {
       const t = performance.now() / 1000;
       ctx.fillStyle = '#5b6068'; ctx.fillRect(0, 0, 480, 640);
       ctx.fillStyle = '#8a7a66'; ctx.fillRect(0, 420, 480, 220);
@@ -645,8 +686,9 @@
       const x = 240 + Math.sin(t * 2.2) * 120;
       ctx.fillStyle = '#ff6a00'; ctx.beginPath(); ctx.arc(x, 540, 28, 0, 7); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x - 8, 532, 6, 0, 7); ctx.fill(); // highlight
-      requestAnimationFrame(draw);
-    })();
+    };
+    // A timer, not requestAnimationFrame, so the demo keeps moving when the tab is in the background.
+    draw(); setInterval(draw, 33);
     return c.captureStream(30);
   }
 
@@ -780,7 +822,7 @@
       const data = this.ctx.getImageData(0, 0, W, H).data;
       const prev = (this.ever && now - this.lastSeen < 600) ? { x: this.x, y: this.y, r: this.r } : null;
       const b = findBall(data, W, H, this.target, prev);
-      this.maskW = W; this.maskH = H; this.lastArea = b ? b.area : 0;
+      this.maskW = W; this.maskH = H; this.lastArea = b ? b.area : 0; this.seenNow = !!b;
       if (b) {
         if (this.found) {
           this.x = lerp(this.x, b.x, 0.6); this.y = lerp(this.y, b.y, 0.6);
@@ -881,7 +923,7 @@
      POSE (MediaPipe) — created once
      ========================================================= */
   let pose = null, poseBusy = false, poseBusySince = 0, poseReady = false, landmarks = null;
-  let poseLatency = 0, poseLite = false, poseSamples = 0;
+  let poseLatency = 0, poseLite = false, poseSamples = 0, poseSmooth = true;
   const POSE_OFF = new URLSearchParams(location.search).get('pose') === '0';
   try {
     if (typeof Pose === 'function' && !POSE_OFF) {
@@ -902,22 +944,44 @@
   } catch (e) { console.warn('Pose init failed', e); pose = null; }
 
   const LM = { lKnee: 25, rKnee: 26, lAnkle: 27, rAnkle: 28, lHeel: 29, rHeel: 30, lFoot: 31, rFoot: 32 };
+  // Each point carries v, the model's visibility score. Points under 0.5 are dropped. Anything the
+  // app SAYS about the feet (corrections, "wrong foot") needs CONF or better, because wrong feedback
+  // is worse than none.
+  const CONF = 0.75;
   function getFeet() {
     if (!landmarks) return null;
-    const g = (i) => { const p = landmarks[i]; return (p && (p.visibility === undefined || p.visibility > 0.5)) ? { x: p.x, y: p.y } : null; };
+    const g = (i) => { const p = landmarks[i]; if (!p) return null; const v = p.visibility === undefined ? 1 : p.visibility; return v > 0.5 ? { x: p.x, y: p.y, v } : null; };
     return {
       L: { knee: g(LM.lKnee), ankle: g(LM.lAnkle), heel: g(LM.lHeel), foot: g(LM.lFoot) },
       R: { knee: g(LM.rKnee), ankle: g(LM.rAnkle), heel: g(LM.rHeel), foot: g(LM.rFoot) }
     };
   }
   const cloneFeet = (f) => f ? JSON.parse(JSON.stringify(f)) : null;
+  const sure = (p, min = CONF) => (p && p.v >= min) ? p : null;
+  // Visibility of the body parts the framing check needs.
+  function bodyVis() {
+    if (!landmarks) return null;
+    const v = (i) => (landmarks[i] && landmarks[i].visibility !== undefined) ? landmarks[i].visibility : 0;
+    return { head: Math.max(v(0), v(7), v(8)), hips: Math.min(v(23), v(24)), hip: Math.max(v(23), v(24)), lFoot: v(LM.lFoot), rFoot: v(LM.rFoot) };
+  }
+  // The foot nearest the ball within 2.5 radii, with whether the model is sure about it.
+  function nearestFoot(feet) {
+    if (!feet || !tracker.found) return null; let best = null;
+    for (const side of ['L', 'R']) {
+      const f = feet[side].foot; if (!f) continue;
+      const d = adist(f.x, f.y, tracker.x, tracker.y) / tracker.r;
+      if (d < 2.5 && (!best || d < best.d)) best = { side, d, sure: f.v >= CONF };
+    }
+    return best;
+  }
 
   /* =========================================================
      DRAWING HELPERS (canvas is CSS-mirrored, so text is flipped back)
      ========================================================= */
-  function drawLabel(ctx, text, x, y, size, color = '#fff') {
+  // align 'left' means left on SCREEN (the canvas is mirrored, so it extends toward smaller image x).
+  function drawLabel(ctx, text, x, y, size, color = '#fff', align = 'center') {
     ctx.save(); ctx.translate(x, y); ctx.scale(-1, 1);
-    ctx.fillStyle = color; ctx.font = `bold ${size}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = color; ctx.font = `bold ${size}px sans-serif`; ctx.textAlign = align; ctx.textBaseline = 'middle';
     ctx.shadowColor = '#000'; ctx.shadowBlur = 4; ctx.fillText(text, 0, 0); ctx.restore();
   }
   function drawBone(ctx, a, b, W, H) {
@@ -977,22 +1041,51 @@
     drawLabel(ctx, 'BALL HERE', gx, gy - gr * 2.6, W * 0.035, '#FFD600');
     drawLabel(ctx, sideOn ? 'CAMERA SIDE-ON · KICK ACROSS THE PICTURE' : 'STAND BEHIND IT · FEET IN VIEW', gx, gy + gr * 2.2, W * 0.028, 'rgba(255,255,255,0.85)');
   }
-  // After Start the person has to walk back into position, so wait for the ball at rest with the
-  // feet in view (or 15 s) before the countdown.
+  // Framing check for the current drill's camera setup. Each item: { ok, label }.
+  function framingChecks(now) {
+    const side = camOf(drillId).group === 'side', out = [];
+    if (!tracker.target) return [{ ok: false, label: 'Pick the ball color on Setup' }];
+    out.push({ ok: tracker.found, label: tracker.found ? 'Ball' : 'Ball in the circle' });
+    if (tracker.found) {
+      const small = tracker.r < 0.022, big = tracker.r > 0.13;
+      out.push({ ok: !small && !big, label: small ? 'Ball too small: camera closer' : big ? 'Ball too big: camera further back' : 'Distance' });
+      out.push({ ok: tracker.speedR(now) < 1.0, label: 'Ball still' });
+    }
+    if (pose && poseReady) {
+      const b = bodyVis();
+      if (!side) { const ok = !!b && b.head > 0.5; out.push({ ok, label: ok ? 'Head' : 'Head in view: step back or tilt up' }); }
+      const hipsOk = !!b && (side ? b.hip : b.hips) > 0.5; out.push({ ok: hipsOk, label: hipsOk ? 'Hips' : 'Hips in view' });
+      const feetOk = !!b && (side ? Math.max(b.lFoot, b.rFoot) : Math.min(b.lFoot, b.rFoot)) > 0.5;
+      out.push({ ok: feetOk, label: feetOk ? (side ? 'Feet' : 'Both feet') : (side ? 'Feet in view' : 'Both feet in view') });
+    }
+    return out;
+  }
+  // After Start the person has to walk back into position, so wait until the framing check passes
+  // (or 20 s) before the countdown. The checklist is drawn on the video meanwhile.
   let readyState = null;
   function getReady(onReady) {
-    readyState = { t0: performance.now(), stillSince: 0, onReady };
-    setStatus('GET READY'); showHud('PUT THE BALL IN THE CIRCLE', 'Stand behind it, feet in view', 'info', 4000);
-    coach.say('Put the ball in the circle and stand behind it.', 'high');
+    const cam = camOf(drillId);
+    readyState = { t0: performance.now(), okSince: 0, onReady, checks: [], lastSay: 0 };
+    setStatus('GET READY'); showHud('GET INTO POSITION', `Camera: ${cam.name}. Ball in the circle.`, 'info', 4000);
+    coach.say(cam.group === 'side' ? 'Camera side-on. Put the ball in the circle and stand beside it.' : 'Put the ball in the circle and stand behind it.', 'high');
   }
   function checkReady(now) {
     if (!readyState) return;
-    const feetOk = !pose || !poseReady || !!getFeet();
-    const ballOk = tracker.found && tracker.speedR(now) < 1.0;
-    if (ballOk && feetOk) { if (!readyState.stillSince) readyState.stillSince = now; } else readyState.stillSince = 0;
-    if ((readyState.stillSince && now - readyState.stillSince > 1200) || now - readyState.t0 > 15000) {
+    const checks = framingChecks(now); readyState.checks = checks;
+    const allOk = checks.every(c => c.ok), bad = checks.find(c => !c.ok);
+    if (allOk) { if (!readyState.okSince) readyState.okSince = now; } else readyState.okSince = 0;
+    if (bad && now - readyState.t0 > 5000 && now - readyState.lastSay > 7000) { readyState.lastSay = now; coach.say(bad.label.replace(':', '.'), 'normal'); }
+    const timedOut = now - readyState.t0 > 20000;
+    if ((readyState.okSince && now - readyState.okSince > 1200) || timedOut) {
+      if (timedOut && bad) showHud('STARTING ANYWAY', bad.label, 'warn', 2500);
       const cb = readyState.onReady; readyState = null; cb();
     }
+  }
+  function drawChecklist(ctx, W, H) {
+    if (!readyState || !readyState.checks.length) return;
+    const n = readyState.checks.length, size = Math.max(11, W * 0.034), lh = size * 1.5, y0 = H * 0.06 + lh * 0.5;
+    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(W * 0.38, y0 - lh * 0.8, W * 0.6, lh * (n + 0.6)); ctx.restore();
+    readyState.checks.forEach((c, i) => drawLabel(ctx, `${c.ok ? '✓' : '✗'} ${c.label}`, W * 0.96, y0 + i * lh, size, c.ok ? '#00FF66' : '#FFD600', 'left'));
   }
   function drawArrow(ctx, x1, y1, x2, y2, color, width) {
     ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width; ctx.shadowColor = color; ctx.shadowBlur = 8; ctx.lineCap = 'round';
@@ -1015,6 +1108,7 @@
   };
   let lastHintT = 0;
   function hint(title, desc, type = 'info', every = 3000) {
+    if (SIM) return;
     const now = performance.now(); if (now - lastHintT < every) return;
     lastHintT = now; showHud(title, desc, type);
   }
@@ -1022,7 +1116,7 @@
 
   const DRILLS = {
     foundations: {
-      name: 'Foundations (Inside-Outs)', go: 'Push it across. Go!',
+      name: 'Foundations (Inside-Outs)', go: 'Side to side. Go!', camera: 'front_low',
       cues: ['Small touches, inside of both feet', 'Knees bent, stay on your toes', 'Eyes up, don\'t look at the ball', 'Keep it close, nice and quick'],
       nudge: 'Push the ball across to the lit ring',
       tip: '<strong>Inside-outs.</strong> Ball in the circle, feet either side. Push it to the lit ring with the inside of one foot, then back with the other. Small touches, knees bent, eyes up. Tap the video to re-centre the rings.',
@@ -1090,7 +1184,7 @@
     },
 
     toe_taps: {
-      name: 'Toe Taps', go: 'Toe taps. Go!',
+      name: 'Toe Taps', go: 'Toe taps. Go!', camera: 'front_low',
       cues: ['Light on your feet, quick little hops', 'Left, right, left, right', 'Just the sole on top of the ball', 'Arms out for balance'],
       nudge: 'Tap the top of the ball with your sole',
       tip: '<strong>Toe taps.</strong> Ball stays still. Tap the top of the ball with the sole of one foot, then the other, hopping lightly. Alternate feet.',
@@ -1106,7 +1200,7 @@
           if (s.state[side] === 'away' && onTop && now - s.lastT > 120) {
             s.state[side] = 'on'; s.lastT = now;
             registerRep(now);
-            if (s.last === side) hint('ALTERNATE FEET', 'Left, right, left, right', 'info', 2500);
+            if (s.last === side && sure(f)) hint('ALTERNATE FEET', 'Left, right, left, right', 'info', 2500); // only when sure which foot
             s.last = side;
           } else if (s.state[side] === 'on' && d > 1.7) {
             s.state[side] = 'away';
@@ -1120,7 +1214,7 @@
     },
 
     l_drags: {
-      name: 'L-Drags', go: 'Drag back, push across. Go!',
+      name: 'L-Drags', go: 'Drag back, push across. Go!', camera: 'front_raised',
       cues: ['Drag it back with the sole, then push it across', 'Same foot for both moves', 'Switch feet every rep', 'Stay low through the move'],
       nudge: 'Roll the ball back toward you, then push it across',
       tip: '<strong>L-drag.</strong> Roll the ball back toward you with the sole, then push it across your body with the inside of the same foot. The ball draws an L. Switch feet each rep.',
@@ -1156,8 +1250,106 @@
       }
     },
 
+    // V-pull: the sole pulls the ball back toward the player (up the frame), then the inside of the
+    // same foot pushes it out diagonally, sideways AND forward. Counted from the ball's path. The
+    // feet only add the same-foot check, and only when the model is sure about both feet.
+    v_pulls: {
+      name: 'V-Pulls', go: 'Pull back, push out. Go!', camera: 'front_raised',
+      cues: ['Pull it back with the sole', 'Push it out with the inside of the same foot', 'Switch feet every rep', 'Stay on your toes'],
+      nudge: 'Pull the ball back, then push it out to the side',
+      tip: '<strong>V-pull.</strong> Pull the ball back toward you with the sole, then push it out diagonally with the inside of the same foot. The ball draws a V. Switch feet each rep.',
+      setup(s) { s.phase = 'wait'; s.ox = tracker.x; s.oy = tracker.y; s.t0 = 0; s.lastDir = 0; s.vx = 0; s.vy = 0; s.pullFoot = null; },
+      update(s, now, feet) {
+        if (!tracker.found) { if (s.phase !== 'wait' && now - s.t0 > 2000) s.phase = 'wait'; return; }
+        const r = tracker.r, rh = tracker.rh();
+        if (s.phase === 'wait') {
+          if (tracker.speedR(now) < 1.0) { s.ox = tracker.x; s.oy = tracker.y; }
+          if (tracker.y < s.oy - 0.8 * rh) { s.phase = 'pull'; s.t0 = now; s.vx = tracker.x; s.vy = tracker.y; s.pullFoot = nearestFoot(feet); }
+        } else if (s.phase === 'pull') {
+          if (tracker.y < s.vy) { s.vx = tracker.x; s.vy = tracker.y; }   // deepest point of the pull is the V's corner
+          if (!s.pullFoot) s.pullFoot = nearestFoot(feet);
+          const dx = tracker.x - s.vx, fwd = (tracker.y - s.vy) / rh;
+          if (Math.abs(dx) >= 1.4 * r && fwd >= 0.5) {
+            const dir = Math.sign(dx), pushFoot = nearestFoot(feet);
+            registerRep(now);
+            let msg = dir === s.lastDir ? 'Nice. Other foot next' : 'Clean';
+            if (s.pullFoot && pushFoot && s.pullFoot.sure && pushFoot.sure && s.pullFoot.side !== pushFoot.side) msg = 'Same foot for the pull and the push';
+            showHud('V-PULL ✓', msg, 'good');
+            s.lastDir = dir; s.phase = 'wait'; s.ox = tracker.x; s.oy = tracker.y;
+          } else if (Math.abs(dx) >= 1.6 * r && fwd < 0.3) {
+            s.phase = 'wait'; hint('OUT AND FORWARD', 'Push it on a diagonal, like a V', 'info');   // that was an L, not a V
+          } else if (fwd >= 1.0 && Math.abs(dx) < 0.6 * r) {
+            s.phase = 'wait';                                                                         // rolled straight back out
+          } else if (now - s.t0 > 2500) {
+            s.phase = 'wait'; hint('PUSH IT OUT', 'Right after the pull', 'info');
+          }
+        }
+      },
+      draw(s, ctx, W, H) {
+        const r = tracker.r * W, ox = s.ox * W, oy = s.oy * H, cy = oy - 1.3 * r, lw = Math.max(2, W * 0.006);
+        const on = s.phase === 'pull', c1 = on ? '#00FF66' : 'rgba(0,229,255,0.45)', c2 = on ? 'rgba(0,255,102,0.9)' : 'rgba(0,229,255,0.3)';
+        drawArrow(ctx, ox, oy, ox, cy, c1, lw);
+        drawArrow(ctx, ox, cy, ox - 2.0 * r, oy + 0.3 * r, c2, lw * 0.85);
+        drawArrow(ctx, ox, cy, ox + 2.0 * r, oy + 0.3 * r, c2, lw * 0.85);
+        drawLabel(ctx, on ? 'PUSH OUT!' : 'PULL BACK', ox, cy - 1.1 * r, W * 0.035, on ? '#00FF66' : '#8396a8');
+      }
+    },
+
+    // Scissors (beta): the ball stays still while a foot swings around the front of it. A rep is a
+    // toe crossing from one side of the ball to the other, in front of it, while the ball doesn't
+    // move. "In front" = lower in the frame than the ball's centre from a raised front camera, or the
+    // ball being briefly covered by the foot. One count per foot per 700 ms, so the way back isn't a
+    // second rep. Pose smoothing is turned off for this drill so the fast foot isn't flattened.
+    scissors: {
+      name: 'Scissors (beta)', go: 'Scissors. Go!', camera: 'front_raised', smooth: false,
+      cues: ['Foot goes around the front of the ball', 'Ball stays still', 'Switch feet each time', 'Stay low, quick feet'],
+      nudge: 'Swing your foot around the front of the ball',
+      tip: '<strong>Scissors (beta).</strong> Ball still in front of you. Swing one foot around the front of the ball without touching it, then the other foot. Counting is still being tuned, so expect some misses.',
+      setup(s) { s.foot = { L: { st: 'idle', side: 0, t: 0 }, R: { st: 'idle', side: 0, t: 0 } }; s.bx = null; s.area = 0; s.occT = -1e9; s.last = null; s.lastT = 0; },
+      update(s, now, feet) {
+        if (!needFeet(feet)) return;
+        if (tracker.found && tracker.speedR(now) < 1.0) {
+          if (s.bx === null || adist(tracker.x, tracker.y, s.bx, s.by) / tracker.r > 0.3) { s.bx = tracker.x; s.by = tracker.y; s.br = tracker.r; }
+          if (tracker.seenNow && tracker.lastArea) s.area = s.area ? lerp(s.area, tracker.lastArea, 0.05) : tracker.lastArea;
+        }
+        if (s.bx === null) return;
+        if (!tracker.seenNow || (s.area && tracker.lastArea < 0.6 * s.area)) s.occT = now;   // ball partly hidden by a foot
+        const moved = tracker.found && adist(tracker.x, tracker.y, s.bx, s.by) / s.br > 1.2;
+        const rh = s.br / aspect;
+        for (const side of ['L', 'R']) {
+          const f = feet[side].foot, st = s.foot[side]; if (!f || f.v < 0.6) continue;
+          const dx = (f.x - s.bx) / s.br, dy = (f.y - s.by) / rh;
+          const near = Math.abs(dx) < 4.5 && dy > -2 && dy < 4;
+          const sideNow = dx > 0.7 ? 1 : dx < -0.7 ? -1 : 0;
+          const inFront = dy > -0.3 || now - s.occT < 400;
+          if (st.st === 'idle') {
+            if (near && sideNow && st.side && sideNow === -st.side && inFront) {
+              if (!moved && now - s.lastT > 250) {
+                s.lastT = now; registerRep(now);
+                if (s.last === side && sure(f)) hint('SWITCH FEET', 'Other foot next', 'info', 2500);
+                s.last = side;
+              }
+              st.st = 'cool'; st.t = now;
+            }
+            if (near && sideNow) st.side = sideNow; else if (!near) st.side = 0;
+          } else {
+            if (near && sideNow) st.side = sideNow;
+            if (now - st.t > 700) st.st = 'idle';
+          }
+        }
+      },
+      draw(s, ctx, W, H) {
+        if (s.bx === null) return;
+        const bx = s.bx * W, by = s.by * H, r = s.br * W;
+        ctx.save(); ctx.strokeStyle = 'rgba(0,255,102,0.75)'; ctx.lineWidth = Math.max(2, W * 0.006); ctx.setLineDash([6, 6]);
+        ctx.beginPath(); ctx.arc(bx, by, 2.4 * r, 0.15, Math.PI - 0.15); ctx.stroke(); ctx.restore();   // lower half = in front of the ball
+        drawLabel(ctx, 'AROUND THE FRONT', bx, by + 3.2 * r, W * 0.032, '#00FF66');
+        drawLabel(ctx, 'BETA', W * 0.94, H * 0.96, W * 0.03, '#FFD600', 'left');
+      }
+    },
+
     wall_pass: {
-      name: 'Wall Pass & Control', go: 'Pass and control. Go!',
+      name: 'Wall Pass & Control', go: 'Pass and control. Go!', camera: 'side_low',
       cues: ['Firm pass, inside of the foot', 'Move to meet the ball', 'Cushion the first touch', 'Look up before you pass'],
       nudge: 'Pass it against the wall and bring it under control',
       tip: '<strong>Wall pass.</strong> Pass firmly against a wall and bring the rebound under control with one touch. A rep counts when the ball stops at your feet again.',
@@ -1192,7 +1384,7 @@
     },
 
     kicking_form: {
-      name: 'Kicking Form', go: 'Set the ball and strike!',
+      name: 'Kicking Form', go: 'Set the ball and strike!', camera: 'side_low',
       cues: ['Plant foot beside the ball, toes to the target', 'Lock your ankle before contact', 'Knee and head over the ball', 'Swing all the way through'],
       nudge: 'Set the ball, step back, and strike it',
       tip: '<strong>Kicking form.</strong> Camera <em>side-on</em>, 8–10 ft away, so you kick across the picture (toward a wall or goal to the side). Set the ball in the circle, step back and strike. At impact I check the plant foot beside the ball, the locked ankle, the knee over the ball and the follow-through.',
@@ -1201,7 +1393,7 @@
       setup(s) { s.phase = 'set'; s.snap = null; s.t0 = 0; s.pending = null; },
       update(s, now, feet) {
         const K = this.K;
-        if (s.pending && now - s.pending.t >= 350) { const p = s.pending; s.pending = null; this.verdict(p, feet); }
+        if (s.pending && now - s.pending.t >= 350) { const p = s.pending; s.pending = null; this.verdict(p, feet, now); }
         if (s.phase === 'set') {
           if (!tracker.found) return;
           const slow = tracker.speedR(now) < 1.5;
@@ -1219,9 +1411,12 @@
       },
       // p = { snap (pre-impact frame), impact (frame at impact), dir (kick direction in image x), speed }
       // `after` = feet ~350 ms after impact, for the follow-through.
-      verdict(p, after) {
+      // Any point the model isn't sure about (visibility < 0.7) counts as "not seen": that check is
+      // then left out of the corrections instead of guessing.
+      verdict(p, after, now) {
         const K = this.K, f = p.snap.feet, bx = p.snap.bx, r = p.snap.r, dir = p.dir;
-        const rel = (pt) => pt ? (pt.x - bx) / r * dir : null;           // ahead of the ball = positive
+        const ok = (pt) => sure(pt, 0.7);
+        const rel = (pt) => ok(pt) ? (pt.x - bx) / r * dir : null;      // ahead of the ball = positive
         const dl = f.L.foot ? adist(f.L.foot.x, f.L.foot.y, bx, p.snap.by) : Infinity;
         const dr = f.R.foot ? adist(f.R.foot.x, f.R.foot.y, bx, p.snap.by) : Infinity;
         if (dl === Infinity && dr === Infinity) { showHud('STRIKE', 'Could not see your feet', 'info'); return; }
@@ -1233,8 +1428,8 @@
         const plantMsg = plantRel === null ? 'Plant foot not seen' : plantOK ? 'Plant ✓' : plantRel < K.plantBehind ? 'Plant foot too far behind' : 'Plant foot past the ball';
         // 2. Ankle locked through contact
         const range = settings.strike === 'laces' ? K.laces : K.inside;
-        const pre = jointAngle(f[strike].knee, f[strike].ankle, f[strike].foot);
-        const post = p.impact ? jointAngle(p.impact[strike].knee, p.impact[strike].ankle, p.impact[strike].foot) : null;
+        const pre = jointAngle(ok(f[strike].knee), ok(f[strike].ankle), ok(f[strike].foot));
+        const post = p.impact ? jointAngle(ok(p.impact[strike].knee), ok(p.impact[strike].ankle), ok(p.impact[strike].foot)) : null;
         const inRange = pre !== null && pre >= range[0] && pre <= range[1];
         const locked = inRange && (post === null || Math.abs(post - pre) < K.drift);
         const ankleMsg = pre === null ? 'Ankle not seen' : locked ? 'Ankle ✓' : !inRange
@@ -1258,7 +1453,7 @@
         if (score >= 90) synthTone(880, 'triangle', 0.25); else playBuzz();
         speak(score >= 90 ? 'Perfect strike!' : score >= 70 ? `Good strike. ${fixes[0] || ''}` : (fixes[0] || 'Fix your form'), true);
         formRatings.push(score);
-        registerRep(performance.now(), { silent: true });
+        registerRep(now, { silent: true });
         captureClip(`${title} · ${score}%`);
       },
       draw(s, ctx, W, H) {
@@ -1277,26 +1472,54 @@
   /* =========================================================
      GUIDED WORKOUTS
      ========================================================= */
+  // Camera setups. Drills name one; front low and front raised share a group, so switching between
+  // them doesn't stop a workout. Changing group (front <-> side) inserts a "move the camera" step.
+  const CAMERAS = {
+    front_low: { group: 'front', name: 'Front, low', how: 'Phone low, facing you, 8 to 10 feet back so your whole body is in the picture, head included.' },
+    front_raised: { group: 'front', name: 'Front, raised', how: 'Tripod about chest height, tilted down, facing you, whole body in the picture.' },
+    side_low: { group: 'side', name: 'Side-on, low', how: 'Phone off to your side at shin to knee height, 8 to 10 feet away, so you move across the picture.' }
+  };
+  const camOf = (id) => CAMERAS[(DRILLS[id] || {}).camera] || CAMERAS.front_low;
+  const cameraHtml = (id) => { const c = camOf(id); return `<div class="cam-line">📷 <b>${c.name}.</b> ${c.how}</div>`; };
   const WORKOUTS = {
     quick: { name: 'Quick Touch', mins: 5, desc: 'Five fast blocks. Good before school or as a warm-up.', blocks: [
       { drill: 'foundations', seconds: 40, goal: 40 }, { rest: 15 }, { drill: 'toe_taps', seconds: 40, goal: 40 }, { rest: 15 },
       { drill: 'l_drags', seconds: 40, goal: 12 }, { rest: 15 }, { drill: 'foundations', seconds: 45, goal: 50 }, { rest: 15 }, { drill: 'toe_taps', seconds: 45, goal: 45 } ] },
-    builder: { name: 'Footwork Builder', mins: 9, desc: 'Seven one-minute blocks cycling the three ground moves.', blocks: [
+    builder: { name: 'Footwork Builder', mins: 9, desc: 'Seven one-minute blocks: inside-outs, toe taps, L-drags and V-pulls.', blocks: [
       { drill: 'foundations', seconds: 60, goal: 60 }, { rest: 20 }, { drill: 'toe_taps', seconds: 60, goal: 60 }, { rest: 20 }, { drill: 'l_drags', seconds: 60, goal: 18 }, { rest: 20 },
-      { drill: 'foundations', seconds: 60, goal: 65 }, { rest: 20 }, { drill: 'toe_taps', seconds: 60, goal: 65 }, { rest: 20 }, { drill: 'l_drags', seconds: 60, goal: 20 }, { rest: 20 }, { drill: 'foundations', seconds: 60, goal: 70 } ] },
-    touch: { name: 'First Touch', mins: 7, desc: 'Wall passes with footwork in between. Needs a wall.', blocks: [
-      { drill: 'foundations', seconds: 45, goal: 45 }, { rest: 15 }, { drill: 'wall_pass', seconds: 75, goal: 15 }, { rest: 20 }, { drill: 'wall_pass', seconds: 75, goal: 15 }, { rest: 20 },
-      { drill: 'toe_taps', seconds: 45, goal: 45 }, { rest: 15 }, { drill: 'wall_pass', seconds: 75, goal: 18 } ] },
-    striker: { name: 'Striker', mins: 6, desc: 'Warm up the feet, then two blocks of scored strikes.', blocks: [
-      { drill: 'foundations', seconds: 45, goal: 45 }, { rest: 15 }, { drill: 'kicking_form', seconds: 90, goal: 8 }, { rest: 20 }, { drill: 'kicking_form', seconds: 90, goal: 8 }, { rest: 15 }, { drill: 'toe_taps', seconds: 45, goal: 45 } ] }
+      { drill: 'foundations', seconds: 60, goal: 65 }, { rest: 20 }, { drill: 'toe_taps', seconds: 60, goal: 65 }, { rest: 20 }, { drill: 'v_pulls', seconds: 60, goal: 16 }, { rest: 20 }, { drill: 'foundations', seconds: 60, goal: 70 } ] },
+    touch: { name: 'First Touch', mins: 8, desc: 'Footwork warm-up, then wall passes with the camera side-on. Needs a wall.', blocks: [
+      { drill: 'foundations', seconds: 45, goal: 45 }, { rest: 15 }, { drill: 'toe_taps', seconds: 45, goal: 45 }, { rest: 20 },
+      { drill: 'wall_pass', seconds: 75, goal: 15 }, { rest: 20 }, { drill: 'wall_pass', seconds: 75, goal: 15 }, { rest: 20 }, { drill: 'wall_pass', seconds: 75, goal: 18 } ] },
+    striker: { name: 'Striker', mins: 7, desc: 'Warm up the feet, then two blocks of scored strikes with the camera side-on.', blocks: [
+      { drill: 'foundations', seconds: 45, goal: 45 }, { rest: 15 }, { drill: 'toe_taps', seconds: 45, goal: 45 }, { rest: 15 },
+      { drill: 'kicking_form', seconds: 90, goal: 8 }, { rest: 20 }, { drill: 'kicking_form', seconds: 90, goal: 8 } ] }
   };
+  // Inserts a 45 s "move the camera" step wherever the camera group changes (replacing the rest there).
+  function expandBlocks(blocks) {
+    const out = []; let group = null;
+    for (const b of blocks) {
+      if (b.drill) {
+        const g = camOf(b.drill).group;
+        if (group && g !== group) {
+          const prev = out[out.length - 1], mv = { rest: 45, move: DRILLS[b.drill].camera };
+          if (prev && prev.rest && !prev.move) { mv.rest = Math.max(45, prev.rest); out[out.length - 1] = mv; } else out.push(mv);
+        }
+        group = g;
+      }
+      out.push(b);
+    }
+    return out;
+  }
   // Animated stick-figure illustration of each move (SMIL animations, 160x116 viewBox).
   // Front view for inside-outs and toe taps, top-down for the L-drag (so the L is obvious),
   // side view for the wall pass and the strike (so the plant foot and swing are visible).
   const MOVE_STEPS = {
-    foundations: ['Ball at one foot', 'Inside of foot pushes it across', 'Other foot pushes it back'],
+    foundations: ['Ball between your feet', 'Inside of foot pushes it across', 'Other foot pushes it back'],
     toe_taps: ['Sole on top of the ball', 'Switch feet, light hops', 'Ball stays still'],
     l_drags: ['Sole drags the ball back', 'Same foot pushes it across', 'Switch feet'],
+    v_pulls: ['Sole pulls the ball back', 'Same foot pushes it out on a diagonal', 'Switch feet'],
+    scissors: ['Ball stays still', 'Foot swings around the front', 'Switch feet'],
     wall_pass: ['Firm pass to the wall', 'Move to meet the rebound', 'Soft first touch'],
     kicking_form: ['Plant foot beside the ball', 'Lock the ankle', 'Strike and follow through']
   };
@@ -1330,6 +1553,25 @@
         + `<ellipse cx="60" cy="42" rx="7" ry="13" fill="#00E5FF"><animateTransform attributeName="transform" type="translate" dur="${d}s" repeatCount="indefinite" calcMode="linear" keyTimes="${kt.join(';')}" values="0 0;0 0;0 14;0 14;48 14;48 14;0 0"/></ellipse>`;
       body = text(80, 10, 'VIEW FROM ABOVE') + path + figure
         + ball(60, 92, anim('cx', [60, 60, 60, 60, 108, 108, 60], kt, d) + anim('cy', [92, 92, 58, 58, 58, 58, 92], kt, d));
+    } else if (id === 'v_pulls') {
+      const d = 2.8, kt = [0, 0.1, 0.4, 0.5, 0.8, 0.9, 1];
+      const path = '<polyline points="56,92 80,58 108,92" fill="none" stroke="#8396a8" stroke-width="2.5" stroke-dasharray="4 4"/>'
+        + '<polygon points="114,98 104,96 110,88" fill="#8396a8"/>'
+        + text(30, 76, '1  PULL', '#00FF66') + text(116, 72, '2  PUSH', '#00FF66');
+      const figure = `<ellipse cx="80" cy="28" rx="26" ry="8" ${FIG}/><circle cx="80" cy="20" r="10" fill="#0a0f16" ${FIG}/>`
+        + `<ellipse cx="100" cy="42" rx="7" ry="13" fill="#00E5FF" opacity="0.7"/>`
+        + `<ellipse cx="60" cy="42" rx="7" ry="13" fill="#00E5FF"><animateTransform attributeName="transform" type="translate" dur="${d}s" repeatCount="indefinite" calcMode="linear" keyTimes="${kt.join(';')}" values="-4 38;-4 38;20 4;20 4;42 38;42 38;-4 38"/></ellipse>`;
+      body = text(80, 10, 'VIEW FROM ABOVE') + path + figure
+        + ball(56, 92, anim('cx', [56, 56, 80, 80, 108, 108, 56], kt, d) + anim('cy', [92, 92, 58, 58, 92, 92, 92], kt, d))
+        + text(80, 113, 'CAMERA THIS SIDE');
+    } else if (id === 'scissors') {
+      const d = 2.6, foot = (path, begin) => `<ellipse cx="0" cy="0" rx="7" ry="13" fill="#00E5FF"><animateMotion dur="${d}s" begin="${begin}" repeatCount="indefinite" calcMode="linear" keyPoints="0;1;1" keyTimes="0;0.5;1" path="${path}"/></ellipse>`;
+      body = text(80, 10, 'VIEW FROM ABOVE')
+        + `<ellipse cx="80" cy="28" rx="26" ry="8" ${FIG}/><circle cx="80" cy="20" r="10" fill="#0a0f16" ${FIG}/>`
+        + '<path d="M104,72 Q80,116 56,72" fill="none" stroke="#8396a8" stroke-width="2.5" stroke-dasharray="4 4"/>'
+        + ball(80, 72)
+        + foot('M100,50 Q86,112 58,74 Q86,112 100,50', '0s') + foot('M60,50 Q74,112 102,74 Q74,112 60,50', `-${d / 2}s`)
+        + text(80, 100, 'AROUND THE FRONT', '#00FF66') + text(80, 113, 'CAMERA THIS SIDE');
     } else if (id === 'wall_pass') {
       const d = 2.6, kt = [0, 0.08, 0.18, 0.45, 0.8, 0.9, 1];
       const base = '44,56 50,78 52,98 62,100', swing = '44,56 58,74 70,86 82,88', recv = '44,56 52,78 56,98 66,100';
@@ -1352,18 +1594,19 @@
   })();
   const workoutSelected = () => $('workoutSelect').value !== 'none';
   const shortName = (id) => DRILLS[id].name.split(' (')[0];
-  const blockLabel = (b) => b.rest ? `Rest ${b.rest}s` : `${shortName(b.drill)} ${b.seconds}s`;
+  const blockLabel = (b) => b.move ? '📷 Move camera' : b.rest ? `Rest ${b.rest}s` : `${shortName(b.drill)} ${b.seconds}s`;
   function renderPlan() {
     const w = WORKOUTS[$('workoutSelect').value]; if (!w) return;
-    const idx = wk ? wk.idx : -1;
-    const curBlock = wk && w.blocks[idx] && !w.blocks[idx].rest ? w.blocks[idx] : (w.blocks[idx + 1] && w.blocks[idx + 1].drill ? w.blocks[idx + 1] : w.blocks.find(b => b.drill));
-    const chips = w.blocks.map((b, i) => `<span class="${i < idx ? 'done' : i === idx ? 'now' : ''}">${blockLabel(b)}</span>`).join('');
-    $('drillTip').innerHTML = `<div class="move">${moveSvg(curBlock.drill)}</div><div><strong>${w.name}</strong> · ${w.mins} min. ${w.desc}<div class="plan">${chips}</div>${stepsHtml(curBlock.drill)}</div>`;
+    const blocks = wk ? wk.blocks : expandBlocks(w.blocks), idx = wk ? wk.idx : -1;
+    const cur = (blocks[idx] && blocks[idx].drill) ? blocks[idx] : (blocks.slice(Math.max(0, idx + 1)).find(b => b.drill) || blocks.find(b => b.drill));
+    const chips = blocks.map((b, i) => `<span class="${i < idx ? 'done' : i === idx ? 'now' : ''}">${blockLabel(b)}</span>`).join('');
+    const moves = blocks.filter(b => b.move).length;
+    $('drillTip').innerHTML = `<div class="move">${moveSvg(cur.drill)}</div><div><strong>${w.name}</strong> · ${w.mins} min. ${w.desc}${moves ? ` The camera moves ${moves === 1 ? 'once' : moves + ' times'}.` : ''}<div class="plan">${chips}</div>${stepsHtml(cur.drill)}${cameraHtml(cur.drill)}</div>`;
   }
   $('workoutSelect').onchange = () => {
     if (wk) finishWorkout(true); else if (live) endSession(repCount > 0);
     const on = workoutSelected();
-    $('drillSelect').disabled = on; $('challengeSelect').disabled = on;
+    $('drillSelect').disabled = on; $('challengeSelect').disabled = on; $('recToggle').disabled = on;
     $('startDrillBtn').innerText = on ? 'Start Workout' : 'Start Drill';
     setDrillUi();
   };
@@ -1371,14 +1614,14 @@
     const id = $('workoutSelect').value, def = WORKOUTS[id]; if (!def) return;
     if (wk) finishWorkout(true, false); else if (live) endSession(false);
     audio();
-    wk = { id, def, idx: -1, results: [], startT: performance.now(), resting: false, restTimer: null, restLeft: 0 };
+    wk = { id, def, blocks: expandBlocks(def.blocks), idx: -1, results: [], startT: performance.now(), resting: false, restTimer: null, restLeft: 0 };
     $('startDrillBtn').disabled = true;
-    coach.say(`${def.name}. ${def.blocks.filter(b => b.drill).length} blocks, about ${def.mins} minute${def.mins === 1 ? '' : 's'}. Let's go.`, 'high');
+    coach.say(`${def.name}. ${wk.blocks.filter(b => b.drill).length} blocks, about ${def.mins} minute${def.mins === 1 ? '' : 's'}. Let's go.`, 'high');
     setTimeout(nextBlock, 3500);
   }
   function nextBlock() {
     if (!wk) return;
-    wk.idx++; const b = wk.def.blocks[wk.idx];
+    wk.idx++; const b = wk.blocks[wk.idx];
     renderPlan();
     if (!b) return finishWorkout(false);
     if (b.rest) return startRest(b);
@@ -1391,17 +1634,28 @@
       beginLive();
       coach.say(`${DRILLS[drillId].go}${b.goal ? ` Try for ${b.goal}.` : ''}`, 'high');
     });
-    if (wk.def.blocks.findIndex(x => x.drill) === wk.idx) getReady(go); else go(); // first block: wait for the player to get into position
+    // First block, or the camera just moved: wait for the player to get into position and pass the framing check.
+    const prev = wk.blocks[wk.idx - 1];
+    if (wk.blocks.findIndex(x => x.drill) === wk.idx || (prev && prev.move)) getReady(go); else go();
   }
   function startRest(b) {
-    const next = wk.def.blocks[wk.idx + 1];
+    const next = wk.blocks[wk.idx + 1];
     const nextName = next && next.drill ? shortName(next.drill) : 'Finish';
     const tip = next && next.drill ? DRILLS[next.drill].cues[0] : '';
     wk.resting = true; wk.restLeft = b.rest; wk.restCalled = new Set();
+    $('restLabel').innerText = b.move ? 'MOVE THE CAMERA' : 'REST';
+    $('restSkip').innerText = b.move ? 'Camera is set' : 'Skip rest';
     $('restNext').innerText = nextName; $('restMove').innerHTML = next && next.drill ? moveSvg(next.drill) : '';
-    $('restTip').innerHTML = next && next.drill ? stepsHtml(next.drill) : ''; $('restBig').innerText = b.rest; $('restOverlay').classList.add('show');
-    setStatus('REST'); $('startDrillBtn').disabled = false;
-    coach.say(`Rest. Next up, ${nextName}. ${tip}`, 'high');
+    $('restBig').innerText = b.rest; $('restOverlay').classList.add('show');
+    setStatus(b.move ? 'MOVE CAMERA' : 'REST'); $('startDrillBtn').disabled = false;
+    if (b.move) {
+      const c = CAMERAS[b.move];
+      $('restTip').innerHTML = `<div class="cam-line">📷 <b>${c.name}.</b> ${c.how}</div>`;
+      coach.say(`Move the camera. ${c.name}. ${c.how} Next up, ${nextName}.`, 'high');
+    } else {
+      $('restTip').innerHTML = next && next.drill ? stepsHtml(next.drill) : '';
+      coach.say(`Rest. Next up, ${nextName}. ${tip}`, 'high');
+    }
     clearInterval(wk.restTimer);
     wk.restTimer = setInterval(() => {
       if (!wk || paused) return;
@@ -1419,7 +1673,7 @@
   }
   $('restSkip').onclick = () => { if (wk && wk.resting) endRest(); };
   function captureBlock() { // records the live block into the workout results and stops it
-    const b = wk.def.blocks[wk.idx]; if (!b || b.rest || !live) return;
+    const b = wk.blocks[wk.idx]; if (!b || b.rest || !live) return;
     const seconds = Math.round((performance.now() - sessionStart) / 1000);
     const form = formRatings.length ? Math.round(formRatings.reduce((a, c) => a + c, 0) / formRatings.length) : null;
     wk.results.push({ drill: drillId, name: shortName(drillId), reps: repCount, seconds, goal: b.goal || null, form, bestCombo });
@@ -1427,7 +1681,7 @@
   }
   function endBlock() {
     if (!wk) return;
-    const reps = repCount, goal = wk.def.blocks[wk.idx].goal;
+    const reps = repCount, goal = wk.blocks[wk.idx].goal;
     captureBlock();
     playWhistle(); buzz([100, 50, 200]);
     showHud('TIME!', `${reps} reps${goal ? ` / goal ${goal}` : ''}`, goal && reps >= goal ? 'good' : 'info', 2500);
@@ -1481,7 +1735,7 @@
   const pausable = () => live || (wk && wk.resting);
   function pauseSession() {
     if (paused || !pausable()) return;
-    paused = true; pauseT = performance.now(); if (live) stopMetronome(); coach.stop();
+    paused = true; pauseT = performance.now(); if (live) stopMetronome(); coach.stop(); lab.stop();
     setStatus('PAUSED'); $('pauseBtn').innerText = 'Resume';
     showHud('PAUSED', 'Tap Resume when ready', 'info', 2000);
   }
@@ -1529,6 +1783,7 @@
   }
   // Big arrow at the top of the video: which way the ball goes next. Readable from across the room.
   function setDirectionHint(side) {
+    if (SIM) return;
     const el = $('dirHint');
     if (!side) { el.classList.remove('show'); return; }
     el.innerText = side === 'L' ? '◀ LEFT' : 'RIGHT ▶';
@@ -1542,6 +1797,7 @@
     buzz(30);
   }
   function showHud(title, desc, type, ms = 1500) {
+    if (SIM) return;
     const hud = $('hudFeedback');
     $('fbTitle').innerText = title; $('fbDesc').innerText = desc;
     hud.className = `hud-feedback show ${type}`;
@@ -1554,9 +1810,11 @@
     clearTimeout(comboBadge._t); comboBadge._t = setTimeout(() => b.classList.remove('show'), 900);
   }
   function registerRep(now, opts = {}) {
+    if (SIM) { SIM.reps.push(now); return; }
     if (!live || finished) return;
     combo = (lastRepT && now - lastRepT < 2500) ? combo + 1 : 1;
     lastRepT = now; repTimes.push(now); repCount++;
+    lab.rep(now);
     if (!opts.silent) { playTargetDing(combo, opts.pitch || 1); shake(); comboBadge(); }
     updateHud(); repFx();
     bestCombo = Math.max(bestCombo, combo);
@@ -1617,6 +1875,7 @@
     drill = makeDrill(); updateHud(); $('bigRep').classList.add('show');
     sessionStart = performance.now(); live = true;
     startMetronome(); setStatus('TRACKING LIVE');
+    if (!wk && $('recToggle').checked) lab.start();
   }
   function finishChallenge(victory) {
     if (finished) return; finished = true;
@@ -1638,7 +1897,7 @@
     if (!live) return;
     if (paused) { sessionStart += performance.now() - pauseT; paused = false; }
     $('pauseBtn').innerText = 'Pause';
-    live = false; stopMetronome(); $('bigRep').classList.remove('show'); setDirectionHint(null);
+    live = false; stopMetronome(); $('bigRep').classList.remove('show'); setDirectionHint(null); lab.stop();
     const seconds = Math.round((performance.now() - sessionStart) / 1000);
     $('startDrillBtn').innerText = 'Start Drill';
     if (save && (repCount > 0 || formRatings.length)) {
@@ -1676,13 +1935,13 @@
     }
     const feet = getFeet();
     checkReady(now);
-    if (live && !paused) updateSession(now, feet);
+    if (live && !paused) { updateSession(now, feet); lab.frame(now, feet); }
     const W = trainCanvas.width, H = trainCanvas.height;
     tCtx.clearRect(0, 0, W, H);
     if (settings.mask) tracker.drawMask(tCtx, W, H);
     drawSkeleton(tCtx, feet, W, H);
     drawBall(tCtx, W, H, now);
-    if (!live && !(wk && wk.resting)) drawGuide(tCtx, W, H, drillId === 'kicking_form');
+    if (!live && !(wk && wk.resting)) { drawGuide(tCtx, W, H, camOf(drillId).group === 'side'); drawChecklist(tCtx, W, H); }
     else if (drill) drill.def.draw(drill, tCtx, W, H, now);
     replay.tick(now, trainVideo, trainCanvas);
     fpsCount++;
@@ -1719,6 +1978,7 @@
   const replay = new ReplayBuffer();
   const clips = [];
   function captureClip(title) {
+    if (SIM) return;
     setTimeout(() => {
       const snap = replay.snapshot(); if (snap.frames.length < 6) return;
       clips.unshift({ title, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), ...snap });
@@ -1772,6 +2032,191 @@
   }
 
   /* =========================================================
+     TEST RECORDINGS
+     Record a single drill (camera video + what the tracker and pose saw each frame), mark the real
+     touches by hand afterwards, then replay the recorded frames through the drill's counting logic
+     ball-only and with feet, and compare both with the marks. Stored on the phone in IndexedDB.
+     ========================================================= */
+  const FEET_KEYS = ['knee', 'ankle', 'heel', 'foot'];
+  const r4 = (v) => Math.round(v * 10000) / 10000;
+  const packFeet = (f) => f ? ['L', 'R'].map(s => FEET_KEYS.map(k => { const p = f[s][k]; return p ? [r4(p.x), r4(p.y), Math.round(p.v * 100) / 100] : 0; })) : 0;
+  function unpackFeet(k) {
+    if (!k) return null; const o = {};
+    ['L', 'R'].forEach((s, i) => { o[s] = {}; FEET_KEYS.forEach((key, j) => { const p = k[i][j]; o[s][key] = p ? { x: p[0], y: p[1], v: p[2] } : null; }); });
+    return o;
+  }
+  const labStore = {
+    db: null, mem: [], opening: null,
+    // Every caller waits on the same open, so a save that arrives mid-open doesn't fall back to memory.
+    open() {
+      if (!this.opening) this.opening = (async () => {
+        if (!window.indexedDB) return null;
+        try {
+          this.db = await new Promise((res, rej) => {
+            const q = indexedDB.open('apex_lab', 1);
+            q.onupgradeneeded = () => q.result.createObjectStore('recs', { keyPath: 'id' });
+            q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+          });
+        } catch (e) { console.warn('IndexedDB unavailable, recordings kept for this visit only', e); this.db = null; }
+        return this.db;
+      })();
+      return this.opening;
+    },
+    async run(mode, fn) {
+      const db = await this.open(); if (!db) return undefined;
+      return new Promise((res, rej) => { const t = db.transaction('recs', mode); const q = fn(t.objectStore('recs')); t.oncomplete = () => res(q ? q.result : null); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });
+    },
+    async all() {
+      try { const r = await this.run('readonly', st => st.getAll()); if (r !== undefined) return r.sort((a, b) => b.ts - a.ts); } catch (e) { console.warn(e); }
+      return this.mem.slice().sort((a, b) => b.ts - a.ts);
+    },
+    async put(rec) {
+      try { const r = await this.run('readwrite', st => st.put(rec)); if (r !== undefined) { await this.trim(); return; } } catch (e) { console.warn('saving recording', e); }
+      this.mem = this.mem.filter(x => x.id !== rec.id); this.mem.push(rec);
+    },
+    async del(id) { try { await this.run('readwrite', st => st.delete(id)); } catch (e) {} this.mem = this.mem.filter(x => x.id !== id); },
+    async trim() { const all = await this.all(); for (const r of all.slice(6)) await this.del(r.id); } // keep the newest six
+  };
+  const lab = {
+    rec: null, recorder: null, chunks: [],
+    start() {
+      if (!stream || !window.MediaRecorder) { showHud("CAN'T RECORD", 'This browser has no video recorder', 'warn', 2500); return; }
+      const mime = ['video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+      try { this.recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 1500000 } : undefined); }
+      catch (e) { console.warn(e); this.recorder = null; showHud("CAN'T RECORD", 'Video recorder failed to start', 'warn', 2500); return; }
+      this.chunks = [];
+      this.recorder.ondataavailable = (e) => { if (e.data && e.data.size) this.chunks.push(e.data); };
+      this.rec = { id: Date.now(), ts: Date.now(), drill: drillId, strike: settings.strike, aspect, camera: DRILLS[drillId].camera,
+        frames: [], liveReps: [], labels: null, mime: this.recorder.mimeType || mime || 'video/webm', t0: performance.now() };
+      this.recorder.start(1000);
+      setStatus('● REC');
+    },
+    frame(now, feet) {
+      const r = this.rec; if (!r) return;
+      const t = Math.round(now - r.t0);
+      if (t > 120000) { this.stop(); showHud('RECORDING STOPPED', 'Two-minute limit reached', 'info', 2500); return; }
+      r.frames.push({ t, f: tracker.found ? 1 : 0, s: tracker.seenNow ? 1 : 0, x: r4(tracker.x), y: r4(tracker.y), r: r4(tracker.r), a: tracker.lastArea || 0, k: packFeet(feet) });
+    },
+    rep(now) { if (this.rec) this.rec.liveReps.push(Math.round(now - this.rec.t0)); },
+    stop() {
+      const r = this.rec, recd = this.recorder; if (!r) return;
+      this.rec = null; this.recorder = null;
+      const finish = async () => {
+        delete r.t0;
+        r.duration = r.frames.length ? r.frames[r.frames.length - 1].t : 0;
+        if (r.frames.length < 30) return; // under a second or so: not worth keeping
+        r.video = this.chunks.length ? new Blob(this.chunks, { type: r.mime }) : null;
+        await labStore.put(r);
+        showHud('RECORDING SAVED', 'Open the Vault to mark the touches', 'good', 3000);
+        if (screen === 'vaultScreen') renderLab();
+      };
+      if (recd && recd.state !== 'inactive') { recd.onstop = finish; try { recd.stop(); } catch (e) { finish(); } } else finish();
+    }
+  };
+  // Runs a recording through its drill's counting logic. useFeet=false feeds no pose at all.
+  function replayDrill(rec, useFeet) {
+    const OFFSET = 10000; // so the drills' "time since last rep" checks behave as they do live
+    const keepT = { found: tracker.found, ever: tracker.ever, x: tracker.x, y: tracker.y, r: tracker.r, lastSeen: tracker.lastSeen, hist: tracker.hist, seenNow: tracker.seenNow, lastArea: tracker.lastArea };
+    const keepG = { aspect, strike: settings.strike, landmarks, drillId, formRatings };
+    const sim = { reps: [] }; SIM = sim;
+    try {
+      aspect = rec.aspect || aspect; settings.strike = rec.strike || settings.strike; landmarks = null; drillId = rec.drill; formRatings = [];
+      Object.assign(tracker, { found: false, ever: false, hist: [], lastSeen: -1e9, seenNow: false, lastArea: 0 });
+      const def = DRILLS[rec.drill], s = { def }; def.setup(s);
+      for (const fr of rec.frames) {
+        const t = fr.t + OFFSET;
+        tracker.found = !!fr.f; tracker.x = fr.x; tracker.y = fr.y; tracker.r = fr.r; tracker.seenNow = !!fr.s; tracker.lastArea = fr.a || 0;
+        if (fr.s) { tracker.ever = true; tracker.lastSeen = t; tracker.hist.push({ t, x: fr.x, y: fr.y }); }
+        while (tracker.hist.length && t - tracker.hist[0].t > 2000) tracker.hist.shift();
+        def.update(s, t, useFeet ? unpackFeet(fr.k) : null);
+      }
+    } catch (e) { console.error('replay failed', e); }
+    finally {
+      SIM = null; Object.assign(tracker, keepT);
+      aspect = keepG.aspect; settings.strike = keepG.strike; landmarks = keepG.landmarks; drillId = keepG.drillId; formRatings = keepG.formRatings;
+    }
+    return sim.reps.map(t => t - OFFSET);
+  }
+  // Pairs counted reps with marked touches within `tol` ms, closest first.
+  function matchReps(pred, marks, tol = 350) {
+    const used = new Array(pred.length).fill(false); let hit = 0;
+    for (const m of marks) {
+      let bi = -1, bd = tol + 1;
+      pred.forEach((p, i) => { const d = Math.abs(p - m); if (!used[i] && d <= tol && d < bd) { bd = d; bi = i; } });
+      if (bi >= 0) { used[bi] = true; hit++; }
+    }
+    return { counted: pred.length, hit, missed: marks.length - hit, phantom: pred.length - hit };
+  }
+  function scoreRecording(rec) {
+    const marks = rec.labels || [];
+    return [
+      { name: 'App, as it ran', ...matchReps(rec.liveReps, marks) },
+      { name: 'Replay, ball + feet', ...matchReps(replayDrill(rec, true), marks) },
+      { name: 'Replay, ball only', ...matchReps(replayDrill(rec, false), marks) }
+    ];
+  }
+  function download(blob, name) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 15000);
+  }
+  const fmtDur = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  async function renderLab() {
+    const list = $('labList'), recs = await labStore.all();
+    list.innerHTML = ''; $('labEmpty').style.display = recs.length ? 'none' : 'block';
+    recs.forEach(rec => {
+      const item = document.createElement('div'); item.className = 'lab-item';
+      const when = new Date(rec.ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      const cam = CAMERAS[rec.camera] ? CAMERAS[rec.camera].name : '';
+      const name = DRILLS[rec.drill] ? DRILLS[rec.drill].name : rec.drill;
+      item.innerHTML = `<div><b></b> <small></small></div><div class="meta"></div><div class="ctl"><button data-act="label">Mark touches</button><button data-act="score">Score</button><button data-act="export">Download</button><button data-act="del">Delete</button></div><div class="out"></div>`;
+      item.querySelector('b').innerText = name;
+      item.querySelector('small').innerText = `${when} · ${fmtDur(rec.duration || 0)}${cam ? ' · ' + cam : ''}`;
+      item.querySelector('.meta').innerText = `App counted ${rec.liveReps.length} · ${rec.labels ? `you marked ${rec.labels.length}` : 'not marked yet'}${rec.video ? '' : ' · no video'}`;
+      const out = item.querySelector('.out');
+      item.querySelector('[data-act="label"]').onclick = () => { if (!rec.video) { out.innerText = 'No video was saved for this one, so it can\'t be marked.'; return; } openLabeler(rec); };
+      item.querySelector('[data-act="score"]').onclick = () => {
+        if (!rec.labels || !rec.labels.length) { out.innerText = 'Mark the touches first, then score.'; return; }
+        const rows = scoreRecording(rec).map(m => `<tr><td>${m.name}</td><td>${m.counted}</td><td>${m.hit}</td><td>${m.missed}</td><td>${m.phantom}</td></tr>`).join('');
+        out.innerHTML = `<table><thead><tr><th>Counting</th><th>Counted</th><th>Caught</th><th>Missed</th><th>Phantom</th></tr></thead><tbody>${rows}</tbody></table><small>You marked ${rec.labels.length} real touches. Caught means a count within a third of a second of one of your marks.</small>`;
+      };
+      item.querySelector('[data-act="export"]').onclick = () => {
+        const { video, ...data } = rec; const stamp = new Date(rec.ts).toISOString().slice(0, 16).replace(/[:T]/g, '-');
+        download(new Blob([JSON.stringify(data)], { type: 'application/json' }), `apex-${rec.drill}-${stamp}.json`);
+        if (video) setTimeout(() => download(video, `apex-${rec.drill}-${stamp}.${rec.mime.includes('mp4') ? 'mp4' : 'webm'}`), 600);
+      };
+      item.querySelector('[data-act="del"]').onclick = async () => { if (confirm('Delete this test recording?')) { await labStore.del(rec.id); renderLab(); } };
+      list.appendChild(item);
+    });
+  }
+  // Mark-the-touches screen
+  let labRec = null, labMarks = [];
+  const labVideo = $('labVideo');
+  function openLabeler(rec) {
+    labRec = rec; labMarks = (rec.labels || []).slice();
+    $('labTitle').innerText = DRILLS[rec.drill] ? DRILLS[rec.drill].name : rec.drill;
+    labVideo.src = URL.createObjectURL(rec.video); labVideo.playbackRate = 0.5; labVideo.currentTime = 0;
+    updateLabCount(); $('labeler').classList.add('show');
+  }
+  function updateLabCount() { $('labCount').innerText = `${labMarks.length} marked`; }
+  function markTouch() {
+    if (!labRec) return;
+    // While playing, a tap lands a little after what was seen; take that back, scaled by the speed.
+    const t = labVideo.currentTime * 1000 - (labVideo.paused ? 0 : 200 * labVideo.playbackRate);
+    labMarks.push(Math.max(0, Math.round(t))); labMarks.sort((a, b) => a - b); updateLabCount();
+    const b = $('labTouch'); b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 120);
+  }
+  $('labTouch').onclick = markTouch;
+  $('labUndo').onclick = () => { labMarks.pop(); updateLabCount(); };
+  $('labClear').onclick = () => { if (confirm('Clear all marks for this recording?')) { labMarks = []; updateLabCount(); } };
+  document.querySelectorAll('#labeler [data-rate]').forEach(b => b.onclick = () => { labVideo.playbackRate = Number(b.dataset.rate); });
+  document.addEventListener('keydown', (e) => { if ($('labeler').classList.contains('show') && (e.code === 'Space' || e.key === 't')) { e.preventDefault(); markTouch(); } });
+  $('labClose').onclick = async () => {
+    labVideo.pause(); if (labVideo.src) URL.revokeObjectURL(labVideo.src); labVideo.removeAttribute('src');
+    $('labeler').classList.remove('show');
+    if (labRec) { labRec.labels = labMarks.slice(); await labStore.put(labRec); labRec = null; renderLab(); }
+  };
+
+  /* =========================================================
      VAULT
      ========================================================= */
   const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1811,6 +2256,7 @@
     $('vaultStreak').innerText = dayStreak(logs);
     renderWorkoutCard();
     renderClips();
+    renderLab();
   }
   $('clearHistoryBtn').onclick = () => { if (confirm('Delete all workout history on this device?')) { store.del('apex_logs_v2'); store.del('apex_dribble_logs'); store.del('apex_last_workout'); store.set('apex_logs_v2', []); renderVault(); } };
 
@@ -1850,9 +2296,12 @@
 
   function setDrillUi() {
     if (workoutSelected()) renderPlan();
-    else $('drillTip').innerHTML = `<div class="move">${moveSvg(drillId)}</div><div>${DRILLS[drillId].tip}${stepsHtml(drillId)}</div>`;
+    else $('drillTip').innerHTML = `<div class="move">${moveSvg(drillId)}</div><div>${DRILLS[drillId].tip}${stepsHtml(drillId)}${cameraHtml(drillId)}</div>`;
     $('strikeItem').style.display = drillId === 'kicking_form' ? 'block' : 'none';
     setDirectionHint(null);
+    // Fast moves (scissors) turn pose smoothing off so the foot isn't lagged and flattened.
+    const smooth = DRILLS[drillId].smooth !== false;
+    if (pose && smooth !== poseSmooth) { poseSmooth = smooth; try { pose.setOptions({ smoothLandmarks: smooth }); } catch (e) {} }
     drill = makeDrill();
   }
   $('drillSelect').onchange = (e) => { if (live) endSession(repCount > 0); drillId = e.target.value; setDrillUi(); repCount = 0; combo = 0; updateHud(); };
@@ -1863,7 +2312,7 @@
   // read the dropdowns at startup instead of assuming the defaults.
   drillId = DRILLS[$('drillSelect').value] ? $('drillSelect').value : 'foundations'; $('drillSelect').value = drillId;
   if (!WORKOUTS[$('workoutSelect').value]) $('workoutSelect').value = 'none';
-  if (workoutSelected()) { $('drillSelect').disabled = true; $('challengeSelect').disabled = true; $('startDrillBtn').innerText = 'Start Workout'; }
+  if (workoutSelected()) { $('drillSelect').disabled = true; $('challengeSelect').disabled = true; $('recToggle').disabled = true; $('startDrillBtn').innerText = 'Start Workout'; }
   setDrillUi();
 
   function mainLoop(now) {
